@@ -1,0 +1,575 @@
+                 BAMBOO UPGRADE
+
+Contents
+Bamboo Upgrade Requirements and Information	2-6
+Sections of Upgrade	7
+High level steps for bamboo upgrade	8-9
+Low Level Steps for bamboo version upgrade	9-12
+Issues and Resolutions	13
+
+
+
+
+
+
+
+
+
+
+
+Bamboo Upgrade
+
+Current Version:
+Bamboo Version  6.7.1 (bamboo.dv.alight.com & bamboo1.alight.com)
+•	OS   Linux 
+•	DB  PostgreSQL
+Bamboo Version  6.2.2 (bamboo.alight.com)
+•	OS  Windows
+•	DB  Oracle 12 C
+
+
+Proposed Version:
+1.	Bamboo Version  6.7.1  7.2.3 (Released On: 5 March 2021, EOL date: 23 November 2022)
+•	Bamboo.dv.alight.com( Bamboo DV)
+•	Bamboo1.alight.com(Bamboo Prod)
+Reference - https://confluence.atlassian.com/support/atlassian-support-end-of-life-policy-201851003.html
+2.	Bamboo Version  6.2.2  6.5  7.2.3 (Released On: 5 March 2021, EOL date: 23 November 2022)
+Reference - https://confluence.atlassian.com/support/atlassian-support-end-of-life-policy-201851003.html
+•	Bamboo.alight.com(Bamboo Prod)
+
+
+
+
+ 
+
+Database: Oralce-12C , PostgreSQL
+Bamboo Home directory - /apps/atlassian/bamboo-home
+Bamboo Application Installation Directory - /apps/atlassian/atlassian-bamboo-6.7.1
+New Bamboo Application Installation Directory - /apps/atlassian/atlassian-bamboo-7.2.3
+NFS Mount Point - /dev/mapper/apps_vg-atlassian_lv
+https://bamboo.alight.com/ instance, the data directory is D:\Atlassian\bamboo
+Method of Upgrade: Bamboo Server – BIN method Installation
+ 
+
+
+Bamboo Paths – bamboo.alight.com( Bamboo PROD)
+OS - Windows
+
+ 
+
+Pre-Checks:
+1.	Make sure you decide the bamboo server version prior before upgrade by referring the release notes on each version and go for the version which suitable for our environment and at lease go with recent version who is stable for month’s in time with reporting any issues
+Document:  https://confluence.atlassian.com/bamboo/bamboo-7-2-release-notes-1026526751.html
+
+2.	Fix the timing of taken backup – Oracle backup, PostgreSQL backup, System NAS backup, Bamboo Home folder backup.
+
+
+Fix the timing of taken backup 
+Oracle backup	19th June (Bamboo PROD)	Automated script running on daily basis to take a backup. Need to confirm the time taken to complete the backup from backup team
+PostgreSQL backup	10th June (Bamboo DV & 20th June (Bamboo PROD)	DB should be backed up before upgrading. Need to confirm the time taken to complete the backup from backup team
+System NAS backup	10th June (Bamboo DV & 20th June (Bamboo PROD)	NAS mount should be backed up before upgrading. Need to confirm the time taken to complete the backup from backup team
+Application home directory	10th June (Bamboo DV & 20th June (Bamboo PROD)	Bamboo home directory backup
+Bamboo System Backup (System Snapshot)	10th June (Bamboo DV & 20th June (Bamboo PROD)	Windows & Linux
+Bamboo Plugins configuration backups	10th June (Bamboo DV & 20th June (Bamboo PROD)	Plugins configuration backup
+
+
+
+
+
+
+
+
+
+3.	System Requirements – Check the following items before going into upgrade
+Reference Document –
+•	 https://confluence.atlassian.com/bamboo/bamboo-best-practice-system-requirements-388401170.html
+•	https://confluence.atlassian.com/bamboo/supported-platforms-289276764.html
+
+a.	Make sure you have enough space on Bamboo home space on apps/atlassian/ filesystem to complete the upgrade
+b.	Make sure we have a proper system core, memory, RAM capacity to go for the upgrade.
+
+4.	Application, Apache server’s status < ps -ef | grep bamboo>
+
+5.	Get the all support teams contacts in-line.
+
+Support Teams	Contacts Details
+ORACLE BACK UP 	DG-Alight-Global-Mphasis-Oracle DG-Alight-Global-Mphasis-Oracle@alight.com
+
+POSTGRESQL BACK UP	DG-Alight-Global-Mphasis-PostgresDB <DG-Alight-Global-Mphasis-PostgresDB@alight.com> 
+NAS BACK UP 	DG-Alight-Global-Mphasis-BUR DG-Alight-Global-Mphasis-BUR@alight.com
+
+VM SNAPSHOT BACK UP 	 DG-Alight-Global-Mphasis-VMCloudHardware DG-Alight-Global-Mphasis-VMCloudHardware@alight.com
+
+UNIXTECH	DG-Alight-India-Mphasis-Unix DG-Alight-India-Mphasis-Unix@alight.com
+
+Bamboo VENDOR Support 	Atlassian Support <priority-support-server@am.atlassian.com>  
+
+
+
+There is no direct contact support as of now, We need to open a atlassian Support ticket with based on priority, they can reply back with the ticket for resolution or they setup a meeting to work in real time screen share sessions. (Atlassian support account should be mandatory to create the ticket, currently only few members having account Tim, Rich etc.…)
+Note: You need ask SMT team to create the separate and dedicated bridge to talk with vendor in real time, suppose if you’re working from INDIA and from the VDI as you don’t have any option to join the audio communication.
+
+
+
+
+
+
+Sections of Upgrade:
+ 
+ Upgrade the bamboo version into the recent and stable version.
+
+
+
+
+
+
+
+
+
+
+
+High level steps for bamboo upgrade:
+
+1. Attain the bin file from Atlassian website 
+2. Upload bin file to Artifactory for storing the file for future reference.
+3. Via ssh, login and wget the file on the proper application node
+4. To upgrade Bamboo, you must install a new Bamboo instance in a  <bamboo-install> directory that is different from the <bamboo-install> directory of the original Bamboo instance.
+ This upgrade scenario uses the home directory and the external database of the original Bamboo instance.
+•	Make sure that the original Bamboo instance is not running before you start the new installation.
+•	To prevent data loss during updates or reinstallation, the <bamboo-home> directory must be different from the <Bamboo-install> directory.
+
+
+5. Select bamboo upgrade and allow the process to finish. 
+
+6. Using screen is recommended during the installation process to ensure it will finish gracefully in the event your session is disconnected. 
+
+7. Once installation completed. Need to mention the new installation path directory info 
+Set the home directory for the new Bamboo instance
+ Set the <home-directory> to use the <home-directory> of the original Bamboo instance:
+Go to the new Bamboo instance <bamboo-install> directory. It is the directory where you installed Bamboo.
+Open atlassian-bamboo/WEB-INF/classes/ bamboo-init.properties 
+Set the bamboo.home variable to use the <bamboo-home> path of the original Bamboo instance.
+
+8. Copy any other immediately required customizations from the old version to the new one (for example if you are not running bamboo on the default ports or if you manage users externally, you'll need to update / copy the relevant files)
+9. Start bamboo on the node.
+10. Update any installed apps
+If you installed any apps in addition to the pre-installed system apps:
+•	Check if all apps are compatible with the new version of Bamboo.
+•	Update any apps that are out-of-date.
+•	Disable any apps that are incompatible with the new version of Bamboo.
+ 11. Automatic update of remote agents
+For Bamboo 3.2 and later, remote agents are updated automatically. Remote agents automatically detect when a new version is available and downloads new classes from the server.
+Reference - https://confluence.atlassian.com/bamboo/bamboo-remote-agent-installation-guide-289276832.html
+
+Low Level Steps for bamboo version upgrade:
+
+1. Download the file for your operating system -
+ https://www.atlassian.com/software/bamboo/download
+	tar.gz for Linux distributions.
+	zip for Windows.
+2. Select 7.2.3 version file to download
+
+3. Upload the file into artifactory location using CURL method.
+                Ex: curl -s --head -u a1026192:lanpassword -X PUT                                                                      "https://artifactory.alight.com/artifactory/cloudbees-jenkins-backups/joc-backup/backup-JOC-Backup-Job-5.tar.gz" --upload-file /tmp/jenkins-joc-backup/backup-JOC-Backup-Job-5.tar.gz
+
+4.  Create the installation directory
+
+a)  Login the bamboo node through ssh and wget the file from the artifactory to server installation directory.
+               wget <URL of Artifactory Location>
+
+b) The path to the extracted directory is referred to as the <Bamboo installation directory> in these instructions.
+5. Create the home directory
+Specify your Bamboo home directory, where your Bamboo data is stored, before you run Bamboo for the first time.
+a) Create your Bamboo home directory (without spaces in the name).
+Note: You should not create your Bamboo home directory inside the  <Bamboo installation directory> — they should be entirely separate locations. If you do put the home directory in the  <Bamboo installation directory>  it will be overwritten, and lost, when Bamboo is upgraded. 
+b) Open <Bamboo installation directory>/atlassian-bamboo/WEB-INF/classes/bamboo-init.properties
+c) Uncomment the bamboo.home line.
+d) Provide the absolute path to the bamboo-home directory.
+Example: 
+bamboo.home=/apps/bamboo/bamboo-home
+
+6. Set the permission <chmod 755 /apps/atlassian/bamboo/7.2.3>
+
+
+7. Update the value of BAMBOO_HOME - Set the home directory for the new Bamboo instance
+ Set the <home-directory> to use the <home-directory> of the original Bamboo instance:
+Go to the new Bamboo instance <bamboo-install> directory. It is the directory where you installed Bamboo.
+Open atlassian-bamboo/WEB-INF/classes/ bamboo-init.properties 
+Set the bamboo.home variable to use the <bamboo-home> path of the original Bamboo instance.
+
+8. Copy any other immediately required customizations from the old version to the new one (for example if you are not running Bitbucket on the default ports or if you manage users externally, you'll need to update / copy the relevant files)
+
+9. Start Bamboo on the node and check the status.
+a) In the command line, change the directory to <Bamboo installation directory> and run the commands to start Bamboo:
+$ cd <Bamboo installation directory>
+$ ./bin/start-bamboo.sh
+
+User App Plugins Status:
+If you installed any apps in addition to the pre-installed system apps:
+•	Check if all apps are compatible with the new version of Bamboo.
+•	Update any apps that are out-of-date.
+•	Disable any apps that are incompatible with the new version of Bamboo.
+
+Plug-in List : Currently there are 5 third party plugins which is using by the users. Out of 5, 2 of them is not supported by Bamboo Ver. 7.2 and remaining three is ok to proceed.
+•	New Relic for Bamboo - These app has not yet been marked as compatible with Bamboo 7.2.3
+•	YAML and JSON Variables Loader - These app has not yet been marked as compatible with Bamboo 7.2.3
+•	Sonar for Bamboo - These app has paid updates that are compatible with Bamboo 7.2.3
+•	Bamboo Artifactory Plugin - These apps have updates that are compatible with Bamboo 7.2.3
+•	Checkmarx Bamboo Plugin - These apps have updates that are compatible with Bamboo 7.2.3
+
+ 
+
+ 
+
+14. Sanity Checks:
+      Complete the sanity checks after the upgrades are completed.
+Start the bitbucket service on node and access the UI URL
+ https://bamboo.dv.alight.com/dashboard
+Finally check all the user plugins status under
+ https://bamboo.dv.alight.com/plugins/servlet/upm
+
+
+
+
+
+
+
+
+Issues and Resolution:
+    This is a section which is having details of issues that we faced during the upgrade and its solution to fix the issues.
+1.  Issues: 
+     Root Cause: 
+      Solution: Setting up proxy
+Append proxyName and proxyPort to <bamboo-install>/conf/server.xml as per following:
+<Connector
+    protocol="HTTP/1.1"
+    port="80"
+ 
+    maxThreads="150" minSpareThreads="25"
+    connectionTimeout="20000"
+    disableUploadTimeout="true"
+    acceptCount="100"
+ 
+    enableLookups="false"
+    maxHttpHeaderSize="8192"
+ 
+    useBodyEncodingForURI="true"
+    URIEncoding="UTF-8"
+ 
+    redirectPort="8443"
+     
+    proxyName=" "bamboo.dv.alight.com"
+    proxyPort="80"
+    />
+
+
+2.  Issues: 
+      Root Cause: 
+       Solution: 
+
+
+
+_____________________
+runbook:
+
+
+
+
+ 
+Table of Contents
+
+Quick Reference	4
+Document History	4
+Summary	4
+Audience	4
+Topology	5
+Reference Architecture	5
+Lifecycles	5
+DV	5
+Server List:	6
+PROD	7
+Software Information	8
+Software Installation	9
+Internal Distribution	9
+File System Structure	9
+Alight-Specific Software Settings	9
+Software Updates	10
+Disaster Recovery	10
+Backup/Restore	10
+Application Configuration / Customizations	10
+Server Settings:	11
+Mail Settings:	11
+Application Standards and Conventions	11
+AAA	12
+User Management	12
+Scripts	13
+Monitoring	14
+Support	14
+Vendor Support	14
+OS Log Files	14
+Ticket / incident / Request Management Process	15
+Create Project in Bamboo	16
+Delete Project in Bamboo	17
+Allow Access to Bamboo Project	17
+Revoke Access to Bamboo Project	18
+
+
+ 
+Quick Reference
+SNOW CMDB Name	Bamboo
+SNOW Business Owner	James Phillips
+SNOW Technical Owner	Austin Smith
+SNOW Support Group	TBD
+SNOW Change Group	TBD
+Active Lifecycles	DV,PR
+Application Access URL	https://bamboo.dv.alight.com
+https://bamboo1.alight.com 
+https://bamboo.alight.com 
+
+Escalated Permission Account	bambooadmin
+Credential Location	KeePass
+Active Directory Service Account	Hewitt/Svc-bamboo
+Service account credential location	KeePass
+Service Name	bamboo
+DR Tier
+Tier 4
+SSL Renewal Date	November 15
+Software Renewal Date	April 15
+
+Document History
+Date	Revision	Name	Change Notes
+8-14-2019	1.0	Austin Smith	Document Creation
+			
+			
+
+
+Summary
+This document is to serve as the runbook for Atlassian Bamboo within Alight Solutions.  Bamboo is the Jira/Bamboo integrated Continuous Integration/Continuous Deployment application created by Atlassian.
+
+Audience
+This document is of technical nature and is intended for colleagues that will administrate Bamboo from the CLI / Operating System and Application-settings level.  All client-side software is out of scope for this document.  Fundamental knowledge required is proficiency with RHEL via SSH in bash and troubleshooting java applications.
+
+Topology
+Atlassian Bamboo has been configured according to the best practices published by Atlassian.  We are running the 5 agent version, with Apache Reverse Proxies for the load balancing (w/ SSL Offloading) and PostgreSQL as the database.  Bamboo consists of 5 static servers, 3 linux and 2 windows servers with 1 of the linux servers running the interface (holding unlimited local build agent slots).
+
+Reference Architecture
+	When Bamboo was originally stood up within Alight’s environment, we followed the published reference architecture provided by the vendor.
+
+Lifecycles
+Bamboo has 2 lifecycles: Development and Production.  All upgrades for software, plugins and any applicable dependencies should be tested in Development and validated before going thru the change process and upgrading production.
+
+DV
+The development instance is accessed by using your browser- https://Bamboo.dv.alight.com.  
+7 
+Server List:
+L4DVITDB7120 – Bamboo DV Database Server
+L4DVEDAP7815 – Bamboo DV Instance
+ 
+PROD
+The production instance is accessed by using your browser – https://Bamboo1.alight.com. 
+ 
+
+Server List:
+L4DVEPAP7808 – Bamboo Prod Instance
+CPWIPAPP0226 – Bamboo Windows Agent
+CPWIPAPP0227 – Bamboo Windows Agent
+L4DVEPAP7809 – Bamboo Linux Agent
+CPVIPMGT0002 – Bamboo Linux Agent
+L4DVIPDB7518 – Bamboo DB Server
+The production instance is accessed by using your browser – https://Bamboo.alight.com
+ 
+
+Server List:
+L4DWIPAP6363 : Bamboo Prod Instance (Windows)
+L4DVIPDB8128: Bamboo Prod DB Oracle 
+
+Software Information
+	Atlassian Software is managed through the operating system’s service control mechanism.  Since we have our services installed on RHEL, we use the service command to control service operation.  The service name after installation is Bamboo.  For the windows nodes, the bamboo agent has been installed as a windows service and is controlled through the windows control manager.  The service name is Atlassian Bamboo.
+
+Software Installation
+	At the time of this document’s writing, Alight is running Bamboo 6.7.1.  Since best practices were used to install this software using the vendor-provided zip file, we have minor adjustments to application configuration that is standard for Alight.  For reference, you should ALWAYS follow the vendor-provided documentation, verifying all dependencies are met. 
+
+Internal Distribution
+Any software installed or distributed within our environment should follow all Alight policies.  One of these policies from a compliance standard is to make sure the software is distributed from Artifactory or Software Center.  Since Bamboo is a 3rd party vendor-provided software and the application servers are linux-based, we have elected to use Artifactory.  The installation package should be downloaded only from Atlassian TLD and stored within Artifactory in the following folder: https://artifactory.alight.com/artifactory/webapp/#/artifacts/browse/simple/General/alight-generic-local/atlassian.  
+
+File System Structure
+	Bamboo was installed using Alight 3rd party vendor installation policy.  This puts the data directory at /apps/atlassian and the application directory at /apps/Atlassian/Atlassian-bamboo-<version>.  
+
+For the https://bamboo.alight.com/ instance, the data directory is D:\Atlassian\bamboo.
+Alight-Specific Software Settings
+	Once Bamboo has been successfully installed, a few configuration files require modification:
+<application home>/ bin/setenv.sh to add in any java_opts for proxy/non-proxy and application performance, as well as the newrelic.jar in the javaagent parameter.  For the best performance, java has been modified to use a heap-size of 12GB with the total memory available at 16GB per application server.  This should be reassessed at every upgrade pursuant to New Relic data and tweaked accordingly.
+
+	The database configuration file is located within the application home directory pursuant to vendor documentation.  This path is /apps/atlassian/Bamboo-home and the file is named bamboo.cfg.xml.  If the database connection ever needs to be changed, editing this file will change the backend database.  Any changes made to this file should only be performed following change procedures, as it will impact the service and require an outage of both application nodes.
+
+Software Updates
+	All software updates should be performed following current Alight policy for change management.  This includes testing and validating the upgrade in the lower lifecycles before promoting to production.  Atlassian is very diligent in maintaining their documentation.  Prior to any upgrade, check the compatibility matrix for dependencies and verify your application link version(s).  Failure to do so will break the application.  
+	
+	Since we have used the zip installation method, upgrades are quite simple.  In practice, only the application home settings need to be carried over between version upgrades.  The following steps loosely outline the process currently used to upgrade Bamboo (primarily following Atlassian’s documentation FIRST):
+1.	Attain the bin file from Atlassian website
+2.	Upload bin file to Artifactory
+3.	Via ssh, login and wget the file on the proper application node 
+4.	Unzip the file to /apps/atlassian
+5.	Uninstall any installed service
+6.	Migrate your settings over
+7.	Start bamboo
+8.	Upgrade agents
+
+Disaster Recovery
+	In the event of a disaster, Bamboo is recovered in Tier 4.  Since Alight has switched over to using VMWare SRM to survive a disaster, intervention will only be needed if the active directory server currently configured does not come up in the DR bubble, or the database server changes names.    However, it is important to remember an internal account must be used for any management required within the UI if directory services are not available / fully working.
+
+Backup/Restore
+	In the event Bamboo suffers from data corruption, restore from backup is necessary.  As of this document’s authoring, home and application directories and maintain availability for 28 days.  If restore is required, open the request through the global service desk and SMT will contact you, following the proper procedures.
+
+
+Application Configuration / Customizations
+Application configuration can be classified using two criteria:
+1.	CLI / Config Files
+a.	bamboo.cfg.xml
+i.	Basic application configuration information (such as DB)
+b.	Setenv.sh
+i.	Changes need to be injected after every version update
+2.	Application UI Settings
+a.	These settings will persist across updates
+i.	User Directory
+ii.	Application Links
+iii.	SMTP Settings
+
+As mentioned in the installation and upgrade sections, we have two files that are most important in the operating system.  <homedir>/bin/setenv.sh, which houses the java settings and proxy configuration; and bamboo.cfg.xml configuration file in the root of the home directory which houses the database connection information.  As long as these two files are set properly, the application should fully function upon service start.
+
+The web UI contains the lion’s share of the application settings.  Any adjustment to these settings should be taken with great care.  The most important setting areas are as follows:
+Global Permissions:
+
+User Directories (Covered in AAA Section)
+Server Settings:
+/apps/atlassian/bamboo-home/bamboo.cfg.xml
+
+Mail Settings:
+/apps/atlassian/bamboo-home/bamboo-mail.cfg.xml
+ 
+
+Application Standards and Conventions
+	Any REST scripts are stored in the application-named repository at: https://bitbucket.alight.com/projects/STS.  Currently, Bamboo provisioning is manual.  Eventually, we will create a powershell script to manage this service, just as with the other tools in our Developer Services Suite.  
+1.	To align with the goal of using Jira for release and deployment management, Bamboo projects are setup with a 1:1 relationship with the Jira project.
+2.	Bamboo also utilizes Jira's built in Crowd for authentication.  Therefore, group management is completed using Jira-based groups.
+3.	Bamboo System Administrators should be a member of the "bamboo-admin" group within Jira. 
+a.	Membership to this group will allow FULL MANAGEMENT of all system-level settings within Bamboo's Web UI.
+4.	Bamboo Groups uses a 2-tier structure similar to Bitbucket and Wiki where:
+a.	"bamboo-<jira-project-key>-admin" is the group for colleagues that will have complete admin access over the build project.
+b.	"bamboo-<jira-project-key>-users" is the Jira group for colleagues that will have the ability to run plans within the project.
+Example:
+Jira Project Name	Jira Project Key	Resulting Bamboo Project	Bamboo Key	Bamboo Group
+Alight Innovation Services	AIS	Alight Innovation Services	AIS	bamboo-ais-admin
+bamboo-ais-users
+
+c.	Each group will have at least 2 admins, which are members of the "bamboo-<jira-project-key>-admin" group.
+d.	If project access is managed at the group level (opposed to plan level), users should be a member of <key>-users and permissions granted at the project level only
+e.	All users should exist within Jira in the licensed user group to fully leverage the application integrations between the Atlassian Suite
+
+AAA
+	Bamboo uses Jira’s built-in crowd for authentication.  
+
+User Management
+	Bamboo is not limited by user licenses, it is licensed on an agent model.  Therefore, any users requiring access to bamboo simply need to be a member of the proper group within Jira.  It is not mandatory for the users to be licensed in Jira to have bamboo access.
+
+The user directory settings in Bamboo are captured here for posterity:
+ 
+
+
+	None of the aforementioned settings should be changed unless we are in a Disaster Recovery scenario and the primary active directory server currently configured does not come up in the DR bubble.  These settings cannot be modified if you log in as a user which is authenticated under the directory you want to edit.
+
+Scripts 
+For simple management and auditing of Bamboo a series of powershell scripts are in process of being developed.  The source of truth for script documentation is within the readme.md in the root of the repository housing the scripts.  You can find the Bamboo scripts in Bitbucket.  
+
+Monitoring
+Bamboo uses the New Relic Infrastructure Agent for monitoring.  This is installed on the operating system itself to monitor the server.  The APM Agent is not used due to Bamboo being a build tool and resources spiking at various times of the day.  If this ever needs to be adjusted, please use the proper policy and procedures.  Typically, this can be accomplished with a SNOW request in the self-service area, found by searching for ‘monitoring’.  
+
+Support
+	Bamboo support is very straight forward.  Standard java application troubleshooting should be used when diagnosing the application.  In the event you are unable to pinpoint an issue by tailing the log /apps/atlassian/bamboo-home/logs/Atlassian-bamboo.log) on the application servers, a vendor support ticket should be opened.  If you are taking on support of the application, please verify you can see the SEN in the web interface: https://my.atlassian.com.  If you are unable to view the SEN, please contact a business owner in the quick reference table to be added.  
+
+For the reverse proxies, Apache service logs directly to /var/log/messages, while the application traffic logs to /var/log/httpd/ directory.  Keepalived logs directly to /var/log/messages.  On occasion, the need to tail the access logs on the reverse proxies may occur.  This will help you see if the request is being mangled between the RP’s and the application.  
+
+
+Vendor Support
+	Alight has standard support through Atlassian.  This means we have a typical 8x5 availability to their support staff.  However, this may change from year to year according to negotiations upon renewal or a change in Atlassian’s terms.  It is normal operating procedure for Atlassian Support to request a support bundle.  They will always provide instructions to generate a support bundle when they request one.  The process may change from version to version or depending on the software edition.  It is always best to check and follow vendor documentation first.  These are the two most common methods we have used in the past to generate support bundles:
+
+Create a Support ZIP
+Create a Support ZIP for Datacenter Applications
+
+Again, ALWAYS rely on vendor documentation as your source of truth!  
+
+OS Log Files
+	All log files for Bamboo are located in the /apps/atlassian/bamboo-home/logs directory.  This directory is unique to each server.  In other words, looking at the logs on one server only gives you a view for anything happening on that specific server.  We do have the ability to adjust the verbosity of the logs.  Any more verbose setting should be done with great care and under the knowledge of multiple Alight colleagues.  More verbose log settings under loose management can cause the application to fail!  You do not want to run at higher verbose settings for long periods of time without keeping a close eye on the server and only under the direction of Atlassian Support. 
+
+	Absent SSH access to the server, access to log files can be gained by going the support bundle route in the Web UI.  While this will not provide real time troubleshooting abilities, it can assist in troubleshooting historic issues.
+
+Ticket / incident / Request Management Process
+	Currently, we have no SNOW form for requesting support.  If someone reaches out to the global service desk, they will open a ticket according to instructions contained in our service’s knowledge base article and assign it appropriately.  If a wide spread outage is discovered, SMT will follow the provided SMT documentation per our standard operating procedures.  Any time a significant change is made to people process or system troubleshooting for authentication, the SMT documentation and knowledge base articles should be updated.  
+Administrative tasks required / performed
+	
+Summarizing the data in this document, support/operational colleagues will have the need to perform the following for Bamboo:
+1.	Provisioning Users
+2.	Provision Groups / manage members
+3.	Provision Projects
+4.	Provide standard java-application-related troubleshooting on the server application
+5.	Interact with Vendor Support, which may require Support Bundle generation.
+
+ 
+Create Project in Bamboo
+To create project in Bamboo, below mentioned details are required.
+o	Project Name: Name of the Project to be created. It should match with respective Jira Project name in Jira.
+o	Project Key: This should be respective Jira Project key. The similar Key ID will be used for Bamboo Key.
+o	Project Descriptions: Short Description of the Project
+o	Business Reason: Short Description is required here.
+o	Approval by Manager: Manager’s approval should be there before Project is created in Bamboo.
+Steps to create Project in Bamboo:
+1.	Login into Bamboo using Admin privileges. On top bar click on “Create” button and then click on “Create Project”
+ 
+2.	It will open a dialog box for Project creation. There are 3 fields. You can add details appropriately.
+o	Project Name: 
+o	Project Key: 
+o	Project Description: 
+3.	Provide above mentioned details and then click on “save” button to create project. 
+Once Project is created, we need to assign respective user group access to Bamboo Project. To assign group access on Bamboo Project, follow below steps.
+1.	login into Bamboo. Click on “Projects” on top bar and select the project where you want to assign permission.
+2.	Click on “Project Settings” button then click on “Project Permissions” at left hand menu.
+3.	To provide permission to specific Group, write down exact group name in “Group access” option. You can assign required permission either Admin or Create plan as per requirement.
+There will be 2 types of Groups will be added here. 
+o	Group Name: bamboo-bamboo_key-admins – This group should have “admin” privileges. This group should be created in Jira. Once the group is created at Jira, it should be visible to Bamboo after 1 hr.
+o	Group Name: bamboo-bamboo_key-users – This group should have “Create Plan” privileges. This group should be created in Jira. Once the group is created at Jira, it should be visible to Bamboo after 1 hr.
+ 
+
+Delete Project in Bamboo
+To delete project in Bamboo, below mentioned details are required.
+o	Project Name: Name of the Project to be deleted. 
+o	Project Key: Name of the Bamboo Project Key.
+o	Business Reason: Short Description is required here.
+o	Approval by Manager: Manager’s approval should be there before Project is created in Bamboo.
+Steps to delete Project in Bamboo:
+1.	Login into Bamboo using Admin privileges. On top bar click on “Projects” and then from the Project list, click on the Project you want to delete.
+2.	Once you go in Project, click on “Project Settings” button.
+3.	In Project settings, click on “Delete Project” button. 
+4.	After Deleting Project, you may want to remove respective groups from Jira also.
+
+Allow Access to Bamboo Project
+To allow access on Project, make sure you have below mentioned details available. 
+o	Username: 
+o	Jira Project Key: 
+o	Access Type:
+o	Approval from Tech Lead:
+o	Business Reason:
+We assign two groups to Bamboo Project when we create Project in Bamboo. The *-admin group associated with Bamboo Project will have admin level privileges. When you want to grant any user Admin access to Bamboo Project, that user should be part of bamboo-bamboo_key-admin group. So you can add that user into -admin group from Jira admin console.
+Similar way, the non-admin users will have access to create plan, run plan etc. So to add user with limited access, add the user in  bamboo-bamboo_key-users group in Jira admin console.
+
+Revoke Access to Bamboo Project
+To revoke access on Project, make sure you have below mentioned details available. 
+o	Username: 
+o	Jira Project Key: 
+o	Access Type:
+o	Approval from Tech Lead:
+o	Business Reason:
+
+To revoke user’s admin access, he has to be removed from bamboo-bamboo_key-admin group from Jira admin console.
+To revoke user access permission from Bamboo Project, the he has to be removed from bamboo-bamboo_key-users group from Jira admin.
+
+
