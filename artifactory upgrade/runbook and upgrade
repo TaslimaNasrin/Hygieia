@@ -1,0 +1,522 @@
+
+ 
+Table of Contents
+Quick Reference	3
+Document History	3
+Summary	3
+Audience	3
+Topology	4
+Reference Architecture	4
+Lifecycles	4
+PROD	4
+Software Information	5
+Software Installation	5
+Internal Distribution	5
+File System Structure	5
+Alight-Specific Software Settings	5
+Software Updates	6
+Disaster Recovery	6
+Backup/Restore	6
+Application Configuration / Customizations	7
+Application Standards and Conventions	11
+Permissions	12
+Groups	12
+AAA	13
+User Management	13
+Scripts	15
+Monitoring	15
+Support	15
+Vendor Support	15
+OS Lo
+ 
+g Files	16
+Ticket / incident / Request Management Process	16
+
+
+ 
+Quick Reference
+SNOW CMDB Name	Artifactory
+SNOW Business Owner	James Phillips
+SNOW Technical Owner	UPoint System Team
+SNOW Support Group	TBD
+SNOW Change Group	TBD
+Active Lifecycles	PR
+Application Access URL	https://artifactory.alight.com 
+Escalated Permission Account	n/a
+Credential Location	KeePass
+Active Directory Service Account	Hewitt/Svc-artifactory
+Service account credential location	KeePass
+Service Name	Artifactory
+DR Tier	Tier 1
+SSL Renewal Date	August 16
+Software Renewal Date	September 5
+
+Document History
+Date	Revision	Name	Change Notes
+8-14-2019	1.0	Austin Smith	Document Creation
+3-13-2020	1.1	Rich Leis	Update documentation
+			
+
+
+Summary
+This document is to serve as the runbook for JFrog Artifactory within Alight Solutions.  JFrog Artifactory is the online artifact storage and internal mirror system of choice for Alight.
+
+Audience
+This document is of technical nature and is intended for colleagues that will administrate Artifactory from the CLI / Operating System and Application-settings level.  All client-side software is out of scope for this document.  Fundamental knowledge required is proficiency with RHEL via SSH in bash and troubleshooting java applications.
+
+Topology
+JFrog Artifactory has been configured using their best practices when it was stood up in Alight’s environment.  This includes 2 Apache reverse web proxy servers, shared NFS storage between the application cluster members and an oracle database (config in db.properties) backend.  There have been some changes in newer versions expanding the shared storage mechanisms, but after heavy thought and assessment, NFS shared storage is the simplest, cost effective method we can use in our environment. 
+
+Reference Architecture
+	When Artifactory was originally stood up within Alight’s environment, we followed the published reference architecture provided by the vendor.
+
+Lifecycles
+Artifactory has one single lifecycle: Production.  Changes between versions are typically non-breaking.  In some instances an interim version upgrade may be required before you can come to latest.  The vendor release notes should always be your source of truth!  Artifactory is unique in its configuration as we have redundant Apache reverse proxies in front of the application.  These web proxies were setup according to vendor instruction for the use of docker repositories, as mod_rewrite was required.  To provide additional redundancy, a second Apache server was stood up and the two were linked together in active/passive mode using keepalived.
+
+PROD
+The production instance is accessed by using your browser: https://artifactory.alight.com. 
+
+ 
+
+
+
+Software Information
+	Artifactory is managed through the operating system’s service control mechanism.  Since we have our services installed on RHEL, we use the service command to control service operation.  The service name after installation is artifactory.
+
+	Care should be taken any time you work with the reverse proxies, as they also front-end other services in the shared toolset.  Some applications do not support SSL natively, so we provide SSL offloading on the web proxies themselves.  If Apache fails to reload/start after a config adjustment, the standby will become the active reverse proxy – therefore it is important NOT to update both reverse proxy configurations at the same time!  Once the primary configuration is fixed and the httpd service starts, the primary node will reassume the master role.
+
+Software Installation
+	At the time of this document’s writing, Alight is running Artifactory 6.11.3.  Since best practices were used to install this software using the vendor-provided rpm method, we have minor adjustments to application configuration that is standard for Alight.  For reference, you should ALWAYS follow the vendor-provided documentation, verifying all dependencies are met. 
+This subsection in the vendor wiki will detail all the steps necessary to install Artifactory with NFS storage via RPM.
+
+
+	Apache and keepalived are both included with RHEL’s base repository.  Apache configuration files are located at /etc/httpd/ and keepalived is located at /etc/keepalived.  Apache service logs directly to /var/log/messages, while the application traffic logs to /var/log/httpd/ directory.  Keepalived logs directly to /var/log/messages.  For Artifactory Apache configuration, the config generator within Artifactory was used.  Minimal modifications to this configuration keeps us within vendor supportable status.
+
+Internal Distribution
+Any software installed or distributed within our environment should follow all Alight policies.  One of these policies from a compliance standard is to make sure the software is distributed from Artifactory or Software Center.  Since Artifactory is a 3rd party vendor-provided software and the application servers are linux-based, we have elected to use Artifactory.  The RPM should be downloaded only from JFrog TLD and stored within Artifactory in the following folder: https://artifactory.alight.com/artifactory/webapp/#/artifacts/browse/simple/General/alight-generic-local/jfrog.  
+
+File System Structure
+	Artifactory was installed using the defaults provided within the RPM.  This places the binaries at /var/opt/jfrog/artifactory and the configuration files at /etc/opt/jfrog/artifactory.  The NFS mount point for shared cluster configuration and data is located at /apps/data.  The NFS share is 4od_uty-l4vntap02_vfiler0-int:/artifactory/data.
+
+Alight-Specific Software Settings
+	Once Artifactory has been successfully installed according to the high availability method provided by the vendor, the majority of the configuration takes place in the web interface.
+For the best performance, java has been modified to use a heap-size of 12GB with the total memory available at 16GB per application server.  This should be reassessed at every upgrade pursuant to New Relic data and tweaked accordingly.  The setting is located in /etc/opt/jfrog/artifactory/default.
+
+	The database configuration file is located within the config directory pursuant to vendor documentation.  This path is /etc/opt/jfrog/artifactory and the file is named db.properties.  If the database connection ever needs to be changed, editing this file will change the backend database.  Any changes made to this file should only be performed following change procedures, as a service restart will be required and degraded cluster health will be experienced during a rolling restart of the application nodes.
+
+Software Updates
+	All software updates should be performed following current Alight policy for change management.  Since Artifactory supports zero-downtime updates, updates can be performed outside of business hours upon approval from the CAB.  JFrog is very diligent in maintaining their documentation.  Prior to any upgrade, check the release notes and any vendor instructions for interim upgrades.  While rare, it has happened in the past and failure to follow the instructions will break the service.  
+
+	
+	Since we have used the RPM installation method, upgrades are quite simple.  In practice, using the HA upgrade method provided by the vendor, no additional steps need to be performed during upgrades.  The following steps loosely outline the process currently used to upgrade Artifactory (primarily following JFrog’s documentation FIRST):
+1.	Attain the rpm file from JFrog’s website (or use the .repo file)
+2.	Upload bin file to Artifactory
+3.	Via ssh, login and wget the file on the proper application node 
+4.	Remove the node from the apache reverse proxies and reload the httpd service
+5.	Stop the service on application node
+6.	Rpm -Uvh <rpmfile>
+7.	Start the service and tail the Catalina.out file
+a.	As root, systemctl start artifactory
+8.	After successful start, add the node back to the httpd service on the reverse proxy
+9.	Repeat for remaining nodes
+
+Disaster Recovery
+	In the event of a disaster, Artifactory is recovered in Tier 1 due to ancillary business unit dependencies.  Since Alight has switched over to using VMWare SRM to survive a disaster, intervention will only be needed if the active directory server currently configured does not come up in the DR bubble, or the database server changes names. 
+
+Backup/Restore
+	In the event Artifactory suffers from data corruption, restore from backup is necessary.  As of this document’s authoring, we backup the NAS, home and application directories and maintain availability for 28 days.  If restore is required, open the request through the global service desk and SMT will contact you, following the proper procedures.
+
+
+Application Configuration / Customizations
+Application configuration can be classified using two criteria:
+1.	CLI / Config Files
+a.	Db.properties file
+b.	Cluster configuration files on the shared NAS mount
+2.	Application UI Settings
+a.	These settings will persist across updates
+i.	User Directory
+ii.	SMTP Settings
+iii.	Proxy Settings
+
+
+As mentioned in the installation and upgrade sections, beyond the initial application installation, settings are managed in the web interface.  This means Artifactory CLI files should not be touched unless we are moving the database or changing the java_opts.
+
+The web UI contains the application settings.  Any adjustment to these settings should be taken with great care.  The most important setting areas are as follows:
+General Settings:
+ 
+
+Proxy Configuration:
+ 
+
+HTTP Settings:
+ 
+ 
+
+Mail Settings:
+ 
+
+General Security Configuration:
+ 
+
+
+LDAP (Covered in AAA Section)
+
+
+Application Standards and Conventions
+Naming conventions for repositories shall adhere to the standards outlined below. The classic template is <token> - <purpose> - <stage> - <packagetype> - <repotype> where:
+1.	Token - This value shall match the project token within BitBucket.  If there is a need to go more granular please engage application owner/governance.  In the absence of a correlating Bitbucket project, the business group can be used instead.
+2.	Purpose - This value shall summarize the type of data within the repository.  This value can be substituted for a concatenated word value in the absence of a correlating Bitbucket project.
+3.	Stage - This value is primarily for development repositories and is therefore optional.  Typical values are "snapshot" and "release".
+4.	PackageType - This value shall match the Package Type chosen when the repository is configured.  Example values are rpm, npm, gradle, maven, generic, etc
+5.	RepoType - This value shall match the storage type of the repository.  Valid values are local, remote and virtual.
+6.	All repository names shall be set in lowercase alphanumeric strings.
+Permissions
+Permissions are very important for your repositories. Artifactory follows the user-group model.  A user can only be granted permissions after logging into the site.  Only after login will they be visible to Artifactory for addition to a group.  Once the group is created and the user is added, a permission grant is mandatory to provide the desired access.
+By default, anonymous users are granted global read access to all new repositories.  If you have any reason to restrict global read access for any reason, the anonymous permission must be removed from your repository.  For public access repositories, a single group is created that contains all the users who shall have full control over data within the repository.  The default is <token> - admins following the below convention.
+Groups
+ The naming convention for groups shall follow <token> - <access> where:
+1.	Token - matches the repository token.
+2.	Access - specifies the access grant for the group.  Typical values are admins or users. 
+1.	Admins - have complete and full control over the repository - this is a FULL permission grant that includes Manage and Delete/Overwrite capabilities over the repository.
+2.	Users - have Deploy/Cache and Annotate capabilities over the repository.
+In the event more granular permissions are required for a subset of your repositories the naming convention shall follow <token> - <purpose> - <stage> - <access> where:
+1.	Token - matches the repository token.
+2.	Purpose - This value shall match the repository convention above.
+3.	Stage - This value shall match the repository convention above.
+4.	Access - specifies the access grant for the group.  Typical values are admins or users. 
+1.	Admins - have complete and full control over the repository - this is a FULL permission grant that includes Manage and Delete/Overwrite capabilities over the repository.
+2.	Users - have Deploy/Cache and Annotate capabilities over the repository.
+ 
+	
+
+AAA
+	Artifactory uses Alight’s Hewitt-NA directory for authentication.  Due to the way Artifactory handles authentication, user’s cannot be provisioned using a script as they must login to Artifactory prior to an administrator having the ability to add them to a group.  For service accounts or CI/CD-type access, we make use of refreshable access tokens. This is consistent with other non-person accounts within ancillary tools. 
+
+User Management
+	At the time of this writing we have a server-based licensing model for Artifactory.  This means we can have as many users as we desire within the system.  As mentioned, users must login with their A-ID and lan password prior to having the opportunity to be added to a group.  
+
+	The settings for the Hewitt-NA User Directory are as follows:
+ 
+ 
+
+
+
+	None of the aforementioned settings should be changed unless we are in a Disaster Recovery scenario and the primary active directory server currently configured does not come up in the DR bubble.  
+
+Scripts 
+For simple auditing of Artifactory a series of powershell scripts have been developed.  The source of truth for script documentation is within the readme.md in the root of the repository housing the scripts.  You can find the Artifactory scripts at https://bitbucket.alight.com/projects/STS.  
+There is also a job configured to issue access tokens for non-person accounts/automated systems-access.  This script is contained in the DST project in Bamboo: https://bamboo1.alight.com.
+
+Monitoring
+Artifactory uses the New Relic Java Agent (APM) for monitoring.  This is injected by using the -javaagent:<path>/newrelic.jar in the java_ops parameter.  If this ever needs to be adjusted, please use the proper policy and procedures.  Typically, this can be accomplished with a SNOW request in the self-service area, found by searching for ‘monitoring’.  
+
+Application performance can be checked by following normal operating procedures for APM using the application name ‘Artifactory’ in the production environment within New Relic.  Issues can be easily identified using standard java application troubleshooting.  
+
+Support
+	Artifactory support is very straight forward.  Standard java application troubleshooting should be used when diagnosing the application.  In the event you are unable to pinpoint an issue by tailing the log (/var/opt/jfrog/artifactory/logs/catalina/catalina.out) on the application servers, a vendor support ticket should be opened by a colleague belonging to the JFrog support roster.  If you are taking on support of the application, please inquire who is on the approved support list to the business or application owner contained in the quick reference part of this document.
+
+For the reverse proxies, Apache service logs directly to /var/log/messages, while the application traffic logs to /var/log/httpd/ directory.  Keepalived logs directly to /var/log/messages.  On occasion, the need to tail the access logs on the reverse proxies may occur.  This will help you see if the request to Artifactory is being mangled between the RP’s and the application.  
+
+Application Servers
+
+Self-service SIDA UNIX Access Request - https://selfservice.hewitt.com/IDMProv/jsps/login/Login.jsf
+Application: Developer Services
+Lifecycle: Prod
+
+Managing Artifactory up/down status
+service atlbitbucket start
+	
+
+
+Apache Servers
+
+The apache servers are were the certificates for Artifactory are deployed.
+
+Config - /etc/httpd/conf.d/xray.conf
+Certificate - /etc/pki/tls/certs/xray_alight_com.crt
+Key - /etc/ssl/private/xray_alight_com.key
+Vendor Support
+	Alight has standard support through JFrog.  This means we have a typical 8x5 availability to their support staff.  However, this may change from year to year according to negotiations upon renewal or a change in JFrog’s terms.  It is normal operating procedure for JFrog Support to request a support bundle.  They will always provide instructions to generate a support bundle when they request one.  The process may change from version to version or depending on the software edition.  It is always best to check and follow vendor documentation first. 
+
+Again, ALWAYS rely on vendor documentation as your source of truth!  
+
+OS Log Files
+	All log files for Artifactory are located in the /var/opt/jfrog/artifactory/logs/ directory.  directory is unique to each server.  In other words, looking at the logs on one server only gives you a view for anything happening on that specific server.  We do have the ability to adjust the verbosity of the logs.  Any more verbose setting should be done with great care and under the knowledge of multiple Alight colleagues.  More verbose log settings under loose management can cause the application to fail!  You do not want to run at higher verbose settings for long periods of time without keeping a close eye on the server and only under the direction of JFrog Support. 
+
+	Absent SSH access to the server, access to log files can be gained by viewing the ‘System Logs’ or generating a support bundle in the Web UI.
+
+
+Ticket / incident / Request Management Process
+	Currently, we have no SNOW form for requesting support.  If someone reaches out to the global service desk, they will open a ticket according to instructions contained in our service’s knowledge base article and assign it appropriately.  If a wide spread outage is discovered, SMT will follow the provided SMT documentation per our standard operating procedures.  Any time a significant change is made to people process or system troubleshooting for authentication, the SMT documentation and knowledge base articles should be updated.  
+
+Administrative tasks required / performed
+	
+Summarizing the data in this document, support/operational colleagues will have the need to perform the following for Artifactory:
+1.	Provisioning Users
+2.	Provision Groups / manage members
+3.	Provision Repositories
+4.	Provide standard java-application-related troubleshooting on the server application
+5.	Interact with Vendor Support, which may require Support Bundle generation.
+
+
+
+
+
+______________________________________
+
+
+
+upgrades:
+
+
+Artifactory Upgrade low level Steps:                                 
+                                                                            Version:7.12.6
+
+https://www.jfrog.com/confluence/display/JFROG/Configuring+Apache
+
+Pre-Checks:
+
+1.	Make sure you decide the artifactory version prior before upgrade by referring the release notes on each version and go for the version which suitable for our environment and at lease go with recent version who is stable for month’s in time with reporting any issues
+Document: https://www.jfrog.com/confluence/display/JFROG/Artifactory+Release+Notes
+
+2.	Fix the timing of taken backup – Oracle 12C backup, System NAS backup, JFrog Home folder backup.
+a.	Oracle -12c backup Automated script running on daily basis to take a backup. As per the team it took 15 min to complete back-up and they are ready to support to take backup one the timing been fixed.
+b.	System NAS backup NAS mount should be backed up before upgrading. Need to confirm the time taken to complete the backup from backup team
+c.	Application home directory Command <tar cvzf /apps/data/artifactory-backup_02212021.tar.gz var/opt/jfrog/artifactory>
+d.	Artifactory System Backup (System Snapshot)
+a.	https://jfrog.com/knowledge-base/what-is-the-best-way-to-migrate-a-large-artifactory-instance-with-minimal-downtime/ 
+e.	Take a backup of system.yaml in application server and 0-artifactory.conf in apache servers
+a.	File location system.yaml /var/opt/jfrog/artifactory/etc/system.yaml
+b.	File location 0-artifactory /etc/httpd/conf.d/0-artifactory.conf
+
+3.	System Requirements – Check the following items before going into upgrade
+Reference Document - Link
+a.	Make your you have enough space on artifactory home space on /var filesystem to complete the upgrade
+Artifactory Home Folder - /var/opt/jfrog/artifactory
+b.	Make sure you have triple the memory compare with data size in artifactory NAS storage.
+c.	Make sure we have a proper system core, memory, RAM capacity to go for the upgrade.
+
+4.	Firewall Testing – Firewall testing, should be done to check 8081 and 8082 external ports are opened or not.
+a.	Application Servers to Apache servers Telnet 
+<telnet l4dvepwb5557.hewitt.com 8081> <telnet l4dvepwb5557.hewitt.com 8082>
+b.	Apache Servers to Application servers Telnet
+<telnet L4DVEPAP4441.hewitt.com 8081> 
+<telnet L4DVEPAP4441.hewitt.com 8082>
+c.	Local VDI to Application servers Telnet (This is optional and not mandataory)
+<telnet L4DVEPAP4441.hewitt.com 8081> 
+<telnet L4DVEPAP4441.hewitt.com 8082>
+
+5.	Application, Apache server’s status <systemctl status artifactory>, <apachectl status>
+
+6.	Get the all support teams contacts in-line.
+ORACLE BACK UP - DG-Alight-Global-Mphasis-Oracle DG-Alight-Global-Mphasis-Oracle@alight.com
+NAS BACK UP - DG-Alight-Global-Mphasis-BUR DG-Alight-Global-Mphasis-BUR@alight.com
+VM SNAPSHOT BACK UP - DG-Alight-Global-Mphasis-VMCloudHardware DG-Alight-Global-Mphasis-VMCloudHardware@alight.com
+UNIXTECH - DG-Alight-India-Mphasis-Unix DG-Alight-India-Mphasis-Unix@alight.com
+JFROG VENDOR Support – JFrog Support support@jfrog.com There is no direct contact support as of now, We need to open a Jfrog Support ticket with based on priority, they can reply back with the ticket for resolution or they setup a meeting to work in real time screen share sessions. (JFROG support account should be mandatory to create the ticket, Currently, James, Scott, Tim and Rich only 4 members having account)
+Note: You need ask SMT team to create the separate and dedicated bridge to talk with vendor in real time, suppose if you’re working from INDIA and from the VDI as you don’t have any option to join the audio communication.
+
+Upgrade steps: 
+(Note: This method is suitable only for accepting the outages, If we don’t want any outage pls refer the appendix section for another method which is not causing any outages, but it’s tricky)
+1.	Start your upgrade on the server by following RPM method.
+
+2.	Login Application Server one by one using Putty or SecureCRT– For ex: L4DVEPAP4441
+List of Servers - L4DVEPAP4440, L4DVEPAP4441, L4DVEPAP4462
+
+3.	Stop the applications on all the servers – commands<systemctl stop artifactory> or </opt/jfrog/artifactory/bin/artifactoryManage.sh stop> or < service artifactory stop> (Root access mandatory)
+
+4.	Proxy Settings run the below commands in-order to open the connection b/w artifactory servers and Internet
+a.	export http_proxy=http://proxycachest.hewitt.com:3228
+b.	export https_proxy=http://proxycachest.hewitt.com:3228
+
+5.	Download the RPM file into the server local from the JFROG site.
+wget https://bintray.com/jfrog/artifactory-pro-rpms/download_file?file_path=jfrog-artifactory-pro%2Fjfrog-artifactory-pro-7.12.6.rpm
+
+Site Reference: https://jfrog.com/download-legacy/?product=artifactory&version=7.12.6
+https://bintray.com/jfrog/artifactory-pro-rpms/jfrog-artifactory-pro/7.12.6
+
+6.	Run the RPM install command:
+Rpm -Uvh jfrog-artifactory-pro-7.12.6.rpm
+
+7.	Check the logs
+Check that the migration has completed successfully, by reviewing the following files:
+migration log: /var/opt/jfrog/artifactory/log/migration.log
+system.yaml configuration: /var/opt/jfrog/artifactory/etc/system.yaml
+This newly created file will contain your current custom configurations in the new format.
+System yaml should populate automatically, but if not, we need to add our config from db.properties
+
+8.	Pls complete the ORACLE DB config setup Pls refer the Bottom of the page for more details
+Note: This is not mandatory for all the upgrades, Some version not required to update any info on oracle side. So pls check the Jfrog site for the version release.
+
+9.	Start the artifactory service  command < service artifactory start|stop> or <systemctl start artifactory>
+Note: Start the service only on version upgraded version. Remaining unpatched servers should be in stop state only.
+
+10.	Check the logs- tail -f /var/opt/jfrog/artifactory/log/console.log
+
+11.	Go to apache servers and stop the httpd service apachectl stop
+
+12.	Go to artifactory.conf  /etc/httpd/conf.d/0-artifactory.conf
+Comment out all the other servers in the load balancer to stop the traffic and only enable the new version server to receive the traffic
+## add HA entries when ha is configured
+<Proxy balancer://artifactory>
+    BalancerMember http://l4dvepap4440.hewitt.com:8081 route=art1
+    #BalancerMember http://l4dvepap4441.hewitt.com:8081 route=art2
+    #BalancerMember http://l4dvepap4462.hewitt.com:8081 route=art3
+
+13.	Restart the apache  apachectl graceful
+
+14.	Add the node back into this load and restart http service in apache server, login the load balancer URL https://artifactory.alight.com with admin id and password or you can use your account.
+
+
+15.	Go to AdminConfigurationhttpd and refer the run book for config setting section.
+
+16.	Repeat all the above steps to complete rest of the HA cluster servers
+
+17.	Verify the HA Installation and Configuration
+
+18.	Once you have completed upgrading your HA cluster, you can verify that your cluster has been installed and configured correctly using the following tests.
+
+19.	Directly Access the Artifactory UI for the server you have just configured
+
+20.	In the Admin module go to Service | Artifactory | System Logs to view the log and verify that you see an entry for HA Node ID.
+
+21.	The bottom of the module navigation bar should also indicate that you are running with an Enterprise license. In case of an error you will see an error message in the page header.
+
+22.	Access Artifactory through your load balancer and log in as Admin.
+
+23.	In the Admin module go to Monitoring | Service Status. When selected the following table including details on all the Artifactory nodes in your cluster will be displayed.
+Refer this link for more details: https://www.jfrog.com/confluence/display/JFROG/Upgrading+Artifactory#UpgradingArtifactory-RPMUpgrade.1
+
+24.	Before configuring settings for application and oracle db. Pls make sure all the application servers having the same version or not. We should not proceed with next steps, if servers are showing different versions. It will lead an inconsistency.
+a.	Login the individual server URL and login with your credentials or use admin credentials. Once logged in you can verify the version no in the Home page.
+25.	Do Sanity checks by triggering the UPN build jobs.
+               http://l4dvipap4435:8080/job/ADA/job/Manual%20Builds/job/Manual-DualBranch-Bootstrap-CI/
+               a. UPN Micro Service
+               b. UPN-UI Web components
+               c. Utils
+
+
+
+
+
+
+
+
+Configuring Oracle setup for 7.x version:
+
+Referral Page: https://www.jfrog.com/confluence/display/JFROG/Oracle#Oracle-ConfiguringArtifactorytouseOracle
+
+Steps:
+1.	Check the liabio directory. Currently we had this version already installed in our servers and it is compatible with our version 7.12.6 (New Version).
+
+2.	If any requirement comes in future, pls check with Jfrog website and check the version that is compatible with the new artifactory version. We may require installing the new version of liblio library.
+Reference Link: https://www.jfrog.com/confluence/display/JFROG/Oracle
+Note: Pls refer appendix section for lib installation steps
+
+3.	Copy the libaio.so file to the Artifactory tomcat lib directory, for example:
+cp /usr/lib64/libaio.so.1.0.1 /opt/jfrog/artifactory/tomcat/lib/libaio.so.1.0.1
+cp /usr/lib64/libaio.so.1.0.1 /opt/jfrog/artifactory/app/artifactory/tomcat/lib/libaio.so.1.0.1
+
+4.	Create the new directory to extract the client lib For Ex: mkdir /apps/oracle
+
+5.	Set permission  chmod 755 /apps/oracle
+
+6.	Go to /apps/oracle and Download the Oracle Instant Client lib and Extract the zip file
+a.	wget https://download.oracle.com/otn_software/linux/instantclient/211000/instantclient-basic-linux.x64-21.1.0.0.0.zip
+b.	unzip instantclient-basic-linux.x64-21.1.0.0.0.zip
+
+7.	Change the name of the old existing jar as ojdbc6.jar.bak in the following location or move to other location
+mv /opt/jfrog/artifactory/tomcat/lib/ojdbc6.jar /apps/oracle/
+
+8.	Extract the Oracle Instant Client and copy the ojdbc8.jar to the /etc/opt/jfrog/artifactory/tomcat/lib directory.
+cp /apps/oracle/instantclient_21_1/ojdbc8.jar /opt/jfrog/artifactory/tomcat/lib/ojdbc8.jar
+cp /apps/oracle/instantclient_21_1/ojdbc8.jar /opt/jfrog/artifactory/app/artifactory/tomcat/lib/ojdbc8.jar
+
+9.	The system.yaml file will be create automatically after the installation
+
+10.	Set the LD_LIBRARY_PATH in system.yaml properties file. 
+env:
+    LD_LIBRARY_PATH: <path Oracle Instant Client directory, for ex: /apps/oracle>
+database:
+    type: oracle
+    driver: oracle.jdbc.OracleDriver
+    url: jdbc:oracle:thin:@<your db server url, for example: localhost:1521>:ORCL
+    username: artifactory
+    password: password
+(Note: the above database field already present under our environment in db.properties)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Appendix:
+We can use another method suppose if we don’t want any outages while upgrading artifactory. Since we are using HA cluster (High Availability), we have another option to go without outage.
+Pls refer the below document and search HA cluster for more updates and follow the same steps to proceed the upgrade.
+
+https://www.jfrog.com/confluence/display/JFROG/High+Availability
+https://www.jfrog.com/confluence/display/JFROG/Installing+Artifactory#InstallingArtifactory-HAInstallation
+
+1.Remove the server from apache reverse proxy & restart http service.
+a.	Login apache server each For ex: l4dvepwb5557 & L4DVEPWB5561
+b.	Go to Path /etc/httpd/conf.d
+c.	Open the file “vi 0-artifactory.conf”
+d.	Remove the entries of your node from proxy load balancer section
+## add HA entries when ha is configured
+<Proxy balancer://artifactory>
+    BalancerMember http://l4dvepap4440.hewitt.com:8081 route=art1
+    BalancerMember http://l4dvepap4441.hewitt.com:8081 route=art2
+    BalancerMember http://l4dvepap4462.hewitt.com:8081 route=art3
+Note: Need to remove only one entry at a time. Once after upgrade completion. You need to add the same entry again and remove another entry.
+e.	Restart the apache <apachectl graceful>
+2.	Make sure the node is not getting any traffic by checking the log.
+/var/log/httpd to ensure that Artifactory is completely inactive.
+
+3.	Proceed the upgrade by following the same method updated under upgrade steps.
+
+
+Oracle Config Update:
+1. Create the new directory to install the libaio library mkdir /apps/oracle
+2. Set Permission chmod 755 /apps/oracle
+3.Download and install the libaio Library
+4. rpm install libaio
+
+Issues and Resolution:
+1. We have encountered with the following error, preventing Artifactory’s Primary node from starting after an upgrade from version 6.11.3 to 7.12.6:
+2021-02-21T15:40:07.396Z [1;33m[jfac ][0;39m [1;31m[ERROR][0;39m [3fd8f7be4792b2d3] [.s.d.u.AccessJdbcHelperImpl:68] [ocalhost-startStop-2] - Could not initialize database: 
+org.flywaydb.core.api.FlywayException: Detected failed migration to version 4.9 (Add platform config)
+This error indicated that the migration failed due to a wrong value in the database. The table  “access_schema_version” which contains the “Add platform config” row (version 4.9)  had a 0 in the success status instead of 1. We manually edited this value and changed it to 1, followed by a restart to Artifactory which enabled us to finish the migration and to successfully upgrade Artifactory’s Primary node.
+
+We then set the new Apache reverse proxy and load balancer configuration file and tested some builds. We noticed that the docker build and login failed with the following error:
+x509: certificate signed by unknown authority.
+After some tests, we fixed the issue adding the ssl chain that was missing to the artifactory.conf file which resolved the issue.
+2. we have investigated why the 3rd and last node is not starting successfully. We have noticed that Artifactory was not able to register the router service and therefore failed to start the service properly:
+Registration with router on URL http://localhost:8046 failed with error: UNAVAILABLE: io exception. Trying again
+
+When we ran the artifactory.sh script manually, we were able to start Artifactory and access the UI, however, on the second time it failed.
+
+We then verified that all ports are open and that the system.yaml file is configured properly.
+
+Lastly, we noticed that there was a permission denied error for the /opt/jfrog/artifactory/var/data/router/node-info/service.id file. When checking this file’s ownership we noticed it was owned by the user root. We have also noticed the router, metadata and event directories were all owned by the user root as well. We then changed the ownership to artifactory:artifactory and restarted the Artifactory service and saw that the service has started successfully. 
+
+We have also discussed removing the user plugins from the $JFROG_HOME/artifactory/etc/artifactory/plugins directory and that in order for the changes to take effect the following REST API call should be run
+
+
+
