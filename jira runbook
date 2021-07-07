@@ -1,0 +1,236 @@
+
+
+ 
+Table of Contents
+Quick Reference	3
+Document History	3
+Summary	3
+Audience	3
+Topology	4
+Reference Architecture	4
+Lifecycles	5
+DV	5
+PROD	5
+Software Information	6
+Software Installation	6
+Internal Distribution	7
+File System Structure	7
+Alight-Specific Software Settings	7
+Software Updates	7
+Disaster Recovery	8
+Backup/Restore	8
+Application Configuration / Customizations	8
+Server Settings:	10
+Mail Settings:	12
+Application Standards and Conventions	13
+AAA	13
+User Management	13
+Monitoring	15
+Support	15
+Vendor Support	16
+OS Log Files	16
+Ticket / incident / Request Management Process	16
+
+
+ 
+Quick Reference
+SNOW CMDB Name	Jira
+SNOW Business Owner	James Phillips
+SNOW Technical Owner	Austin Smith
+SNOW Support Group	TBD
+SNOW Change Group	TBD
+Active Lifecycles	DV,PR
+Application Access URL	https://jira.dv.alight.com
+https://jira.alight.com 
+
+Escalated Permission Account	sysadmin
+Credential Location	KeePass
+Active Directory Service Account	Hewitt/Svc-jira, D2/svc-jira (for prod)
+Service account credential location	KeePass
+Service Name	jira
+DR Tier
+Tier 4 (maintenance any day, off-hours)
+SSL Renewal Date	Feb 19
+Software Renewal Date	May 4
+
+Document History
+Date	Revision	Name	Change Notes
+8-14-2019	1.0	Austin Smith	Document Creation
+			
+			
+
+
+Summary
+This document is to serve as the runbook for Atlassian Jira within Alight Solutions.  Atlassian Jira is the project management platform of choice for Alight.
+
+Audience
+This document is of technical nature and is intended for colleagues that will administrate Jira from the CLI / Operating System and Application-settings level.  Jira is accessed through a browser.  However, when the testing BAU loads test cases into Zephyr for Jira, a client side .jar file is used.  Fundamental knowledge required is proficiency with RHEL via SSH in bash and troubleshooting java applications.
+
+Topology
+Atlassian Jira has been configured according to the best practices published by Atlassian.  We are running the datacenter version, with NFS as the shared drive between the servers, F5’s for the load balancing (w/ SSL Offloading) and MSSQL as the database.  D2 Active directory is used to authenticate users using Atlassian’s delegated LDAP authentication provider.
+
+Reference Architecture
+	When Jira was originally stood up within Alight’s environment, we followed the published reference architecture provided by the vendor.
+ 
+Lifecycles
+Jira has 2 lifecycles: Development and Production.  All upgrades for software, plugins and any applicable dependencies should be tested in Development and validated before going thru the change process and upgrading production.
+
+DV
+The development instance is accessed by using your browser- https://Jira.dv.alight.com.  
+ 
+
+PRODfconfig
+The production instance is accessed by using your browser – https://Jira.alight.com. 
+ 
+
+
+
+
+Software Information
+	Atlassian Software is managed through the operating system’s service control mechanism.  Since we have our services installed on RHEL, we use the service command to control service operation.  The service name after installation is Jira.
+
+Software Installation
+	At the time of this document’s writing, Alight is running Jira 8.2.4.  Since best practices were used to install this software using the vendor-provided bin method, we have minor adjustments to application configuration that is standard for Alight.  For reference, you should ALWAYS follow the vendor-provided documentation, verifying all dependencies are met. 
+
+Internal Distribution
+Any software installed or distributed within our environment should follow all Alight policies.  One of these policies from a compliance standard is to make sure the software is distributed from Artifactory or Software Center.  Since Jira is a 3rd party vendor-provided software and the application servers are linux-based, we have elected to use Artifactory.  The installation package should be downloaded only from Atlassian TLD and stored within Artifactory in the following folder: https://artifactory.alight.com/artifactory/webapp/#/artifacts/browse/simple/General/alight-generic-local/atlassian.  
+
+File System Structure
+	Jira was installed using Alight’s standard 3rd party software policy/pathing.  This puts the data directory at /apps/Atlassian/application-data and the application home directory at /apps/Atlassian/jira.  The NFS mount point for shared cluster data is located at /apps/Atlassian/jirasharedhome.  The NFS share is unity-4dursappvfnew:/jira_prd/data.
+
+Alight-Specific Software Settings
+	Once Jira has been successfully installed, a few configuration files require modification:
+<application home>/Jira/bin/setenv.sh to add in any java_opts for proxy/non-proxy and application performance, as well as the newrelic.jar in the javaagent parameter.  For the best performance, java has been modified to use a heap-size of 12GB with the total memory available at 16GB per application server.  This should be reassessed at every upgrade pursuant to New Relic data and tweaked accordingly.
+
+	The database configuration file is located within the application data directory.  This path is /apps/atlassian/application-data/Jira/ and the file is named dbconfig.xml.  If the database connection ever needs to be changed, editing this file will change the backend database.  Any changes made to this file should only be performed following change procedures, as it will impact the service and require an outage of both application nodes.
+
+Software Updates
+	All software updates should be performed following current Alight policy for change management.  This includes testing and validating the upgrade in the lower lifecycles before promoting to production.  Atlassian is very diligent in maintaining their documentation.  Prior to any upgrade, check the compatibility matrix for dependencies and verify your application link version(s).  Failure to do so will break the application.  
+https://confluence.atlassian.com/applinks/application-links-version-matrix-779174762.html
+	
+	Since we have used the bin installation method, upgrades are quite simple.  In practice, only the application home settings need to be carried over between version upgrades.  The following steps loosely outline the process currently used to upgrade Jira (primarily following Atlassian’s documentation FIRST):
+1.	Attain the bin file from Atlassian website
+2.	Upload bin file to Artifactory
+3.	Via ssh, login and wget the file on the proper application node 
+4.	Chmod +x the file
+5.	Put the application cluster in upgrade mode thru the web UI
+6.	Run the bin file
+7.	Select datacenter upgrade and allow the process to finish.
+a.	Using screen is recommended during the installation process to ensure it will finish gracefully in the event your session is disconnected.
+8.	start the services
+
+NOTE: Jira Datacenter supports Zero-Downtime upgrades (except between major versions).
+
+Disaster Recovery
+	In the event of a disaster, Jira is recovered in Tier 4..  Since Alight has switched over to using VMWare SRM to survive a disaster, intervention will only be needed if the active directory server currently configured does not come up in the DR bubble, or the database server changes names.  
+
+Backup/Restore
+	In the event Jira suffers from data corruption, restore from backup is necessary.  As of this document’s authoring, we backup the NAS, home and application directories and maintain availability for 28 days.  If restore is required, open the request through the global service desk and SMT will contact you, following the proper procedures.
+
+
+Application Configuration / Customizations
+Application configuration can be classified using two criteria:
+1.	CLI / Config Files
+a.	Dbconfig.xml
+i.	Basic application configuration information (such as DB)
+b.	Setenv.sh
+i.	Changes need to be injected after every version update
+c.	Cluster.properties
+i.	Cluster node information; location of shared home directory
+2.	Application UI Settings
+a.	These settings will persist across updates
+i.	User Directory
+ii.	Application Links
+iii.	SMTP Settings
+
+As mentioned in the installation and upgrade sections, we have two files that are most important in the operating system.  <homedir>/bin/setenv.sh, which houses the java settings and proxy configuration; and dbconfig.xml database configuration file in the root of the data directory which houses the database connection information.  As long as these two files are set properly, the application should fully function upon service start.  To have a healthy cluster, the cluster.properties file should be configured pursuant to the vendor documentation.
+
+The web UI contains the lion’s share of the application settings.  Any adjustment to these settings should be taken with great care.  The most important setting areas are as follows:
+Global Permissions:
+ 
+User Directories (Covered in AAA Section):
+ 
+Server Settings:
+ 
+ 
+ 
+Mail Settings:
+ 
+
+  
+
+Single Sign-on (SSO) Settings:
+   On the SSO tab under Jira Administration you will see all the configuration settings along with the location for the certificate.  The certificate is the only thing we should ever have to update here.
+
+  Jira DV -  https://jira.dv.alight.com/plugins/servlet/authentication-config
+  Jira PR - https://jira.alight.com/plugins/servlet/authentication-config
+
+   Note:
+•	Don’t ever make any changes without backing up the settings.  Once you click Save settings will be lost
+•	When updating the certificate, remember to remove any new line characters using Notepad++. This can be done by using the Plugins->Hex-Editor->View in Hex menu and doing a ctrl-h and find 0d0a and replacing with blank. Leave View in Hex mode and you will have the string to update
+
+    
+Application Standards and Conventions
+	Classic Naming Conventions will be inherently followed by using the provisioning powershell script located in Jira: https://bitbucket.alight.com/projects/STS.  It is important to use meaningful project name and description since this information is free-form entry.
+Project keys, as with all Atlassian products, must be unique.
+
+1.	The powershell provisioning script should always be used to create users, groups and projects.  This will ensure naming conventions are followed to spec.
+a.	Descriptions for the project should be meaningful and NOT contain any commas.
+b.	Each project will have at least 2 admins, Project Leadership role.
+c.	All project roles are managed via project lead and project admin roles.  Users need to be licensed in the system prior to them being added to a project role.
+2.	Users should have their username match their alight.com email address.
+3.	Jira Internal users should not be provisioned without clearance from the GLS/GSS team.
+4.	Service accounts nor distribution emails should not be licensed within Jira.  
+	
+
+AAA
+	Jira uses Alight’s Hewitt-D2 directory for authentication.  Atlassian products do not support load balanced active directory connections, so we must point to a single AD server.  
+
+User Management
+	At the time of this writing we have 4,000 user licenses for Jira.  The internal licensing group, jira-users, is leveraged to grant access to Jira according to the ebb and flow of the company.  Once we automate group management within active directory, a directory-based license group can exist.
+
+	Because we have limited coverage for user licensing, we use the delegated LDAP authentication type user directory.  The settings for the Hewitt-D2 User Directory are as follows:
+
+ 
+
+
+	None of the aforementioned settings should be changed unless we are in a Disaster Recovery scenario and the primary active directory server currently configured does not come up in the DR bubble.  These settings cannot be modified if you log in as a user which is authenticated under the directory you want to edit.
+Scripts 
+For simple management and auditing of Jira a series of powershell scripts have been developed.  The source of truth for script documentation is within the readme.md in the root of the repository housing the scripts.  You can find the Jira scripts at https://bitbucket.alight.com/projects/STS.  
+There is also a nightly job configured to manage Jira users pursuant to the ebb and flow of the company.  This is a nightly job that runs through the licensed user group and verifies the active directory account is active.  If the account is inactive, the script then removes the user account from the licensed user group, reclaiming the user’s stale license.  This script is run nightly (CST) and is contained in the DST project in Bamboo: https://bamboo1.alight.com.
+
+Monitoring
+Jira uses the New Relic Java Agent (APM) for monitoring.  This is injected by using the -javaagent:<path>/newrelic.jar in the java_ops parameter.  If this ever needs to be adjusted, please use the proper policy and procedures.  Typically, this can be accomplished with a SNOW request in the self-service area, found by searching for ‘monitoring’.  
+
+Application performance can be checked by following normal operating procedures for APM using the application name ‘Jira’ in the production environment within New Relic.  The development instance uses ‘Jira’ for the application name.
+
+Support
+	Jira support is very straight forward.  Standard java application troubleshooting should be used when diagnosing the application.  In the event you are unable to pinpoint an issue by tailing the log (/apps/atlassian/application-data/Jira/log/atlassian-Jira.log) on the application servers, a vendor support ticket should be opened.  If you are taking on support of the application, please verify you can see the SEN in the web interface: https://my.atlassian.com.  If you are unable to view the SEN, please contact a business owner in the quick reference table to be added.  If you are working with a user to troubleshoot an issue, it is always important to get the node they are connecting to by viewing the footer of their web session.  
+
+	The Zephyr importer utility is fairly straight forward.  www.getzephyr.com is the vendor’s site.  They always keep their documentation up to date as well.  The latest importer utility should always be distributed from Artifactory.  Java 1.8 is recommended to run the jar due to updates in the SSL Handshake libraries.
+
+Vendor Support
+	Alight has standard support through Atlassian.  This means we have a typical 8x5 availability to their support staff.  However, this may change from year to year according to negotiations upon renewal or a change in Atlassian’s terms.  It is normal operating procedure for Atlassian Support to request a support bundle.  They will always provide instructions to generate a support bundle when they request one.  The process may change from version to version or depending on the software edition.  It is always best to check and follow vendor documentation first.  These are the two most common methods we have used in the past to generate support bundles:
+
+Create a Support ZIP
+Create a Support ZIP for Datacenter Applications
+
+Again, ALWAYS rely on vendor documentation as your source of truth!  
+
+OS Log Files
+	All log files for Jira are located in the /apps/atlassian/application-data/Jira/log directory.  This directory is above the shared drive, so you the directory is unique to each server.  In other words, looking at the logs on one server only gives you a view for anything happening on that specific server.  We do have the ability to adjust the verbosity of the logs.  Any more verbose setting should be done with great care and under the knowledge of multiple Alight colleagues.  More verbose log settings under loose management can cause the application to fail!  You do not want to run at higher verbose settings for long periods of time without keeping a close eye on the server and only under the direction of Atlassian Support. 
+
+	Absent SSH access to the server, access to log files can be gained by going the support bundle route in the Web UI.  While this will not provide real time troubleshooting abilities, it can assist in troubleshooting historic issues.
+
+
+Ticket / incident / Request Management Process
+	Currently, we have no SNOW form for requesting support.  If someone reaches out to the global service desk, they will open a ticket according to instructions contained in our service’s knowledge base article and assign it appropriately.  If a wide spread outage is discovered, SMT will follow the provided SMT documentation per our standard operating procedures.  Any time a significant change is made to people process or system troubleshooting for authentication, the SMT documentation and knowledge base articles should be updated.  
+Administrative tasks required / performed
+	
+Summarizing the data in this document, support/operational colleagues will have the need to perform the following for Jira:
+Using the powershell script to:
+1.	Provisioning Users
+2.	Provision Groups / manage members
+3.	Provision Projects
+4.	Provide standard java-application-related troubleshooting on the server application
+5.	Interact with Vendor Support, which may require Support Bundle generation.
