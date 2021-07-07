@@ -1,0 +1,61 @@
+import com.atlassian.sal.api.component.ComponentLocator
+import com.atlassian.bitbucket.user.UserService
+import com.atlassian.bitbucket.user.ApplicationUser
+import com.atlassian.bitbucket.util.PageRequest;
+import com.atlassian.bitbucket.util.PageRequestImpl;
+import java.util.regex.Pattern;
+import org.apache.log4j.Logger
+import org.apache.log4j.Level
+import com.atlassian.sal.api.component.ComponentLocator;
+import com.atlassian.bitbucket.repository.RepositoryService;
+import com.atlassian.bitbucket.repository.Repository;
+import com.atlassian.bitbucket.repository.RefService
+import com.atlassian.bitbucket.event.pull.PullRequestMergedEvent;
+import com.atlassian.bitbucket.pull.PullRequest;
+import com.atlassian.bitbucket.repository.RepositoryCloneLinksRequest;
+import com.atlassian.sal.api.component.ComponentLocator
+import com.atlassian.bitbucket.repository.Repository
+import com.atlassian.bitbucket.repository.RepositoryService
+import com.atlassian.bitbucket.util.Page
+import com.atlassian.bitbucket.util.PageProvider
+import com.atlassian.bitbucket.util.PageRequest
+import com.atlassian.bitbucket.util.PagedIterable
+import static com.onresolve.scriptrunner.canned.bitbucket.util.BitbucketCannedScriptUtils.unlimitedPager
+boolean bVeto = false;
+try {
+        
+		boolean bIsTargetDevelop = false;
+		boolean bIsTargetMaster = false;
+		boolean bIsSourceReleaseOrHotfix = false;
+		boolean bIsSourceFeatureOrBugfixOrHotfix = false;
+
+		bIsTargetMaster = mergeRequest.pullRequest.toRef.id.startsWith("refs/heads/master");
+		bIsTargetDevelop = mergeRequest.pullRequest.toRef.id.startsWith("refs/heads/develop");
+		if(bIsTargetMaster == true)
+		{
+			bIsSourceReleaseOrHotfix = mergeRequest.pullRequest.fromRef.displayId.matches("hotfix/.*") || mergeRequest.pullRequest.fromRef.displayId.matches("release/.*")
+		
+			if (bIsSourceReleaseOrHotfix == false)
+			{                	
+               mergeRequest.veto("Invalid Merge","Only Release and Hotfix branch can be merged to Master");     
+               bVeto = true;
+			}
+		}
+		if(bIsTargetDevelop == true)
+		{
+			bIsSourceFeatureOrBugfixOrHotfix = mergeRequest.pullRequest.fromRef.displayId.matches("feature/.*") || mergeRequest.pullRequest.fromRef.displayId.matches("bugfix/.*") || mergeRequest.pullRequest.fromRef.displayId.matches("hotfix/.*")
+            if (bIsSourceFeatureOrBugfixOrHotfix == false)
+			{    
+               mergeRequest.veto("Invalid Merge","Only Feature,Bugfix and Hotfix branches can be merged to Develop");
+                bVeto = true;              
+                
+			}
+		}   
+	}
+catch (Exception e)
+{
+    bVeto = true;
+    log.error("Error evaluating Upn Merge Workflow.",e);
+    mergeRequest.veto("Error Processing Request", "Error Processing Merge Workflow. Please submit a UST in Jira.");
+}
+return bVeto;
