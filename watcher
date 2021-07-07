@@ -1,0 +1,67 @@
+{
+  "trigger": {
+    "schedule": {
+      "interval": "15m"
+    }
+  },
+  "input": {
+    "search": {
+      "request": {
+        "search_type": "query_then_fetch",
+        "indices": [
+          "ada-container-log*"
+        ],
+        "rest_total_hits_as_int": true,
+        "body": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "must": [],
+              "filter": [
+                {
+                  "multi_match": {
+                    "type": "best_fields",
+                    "query": "\"org.yaml.snakeyaml.scanner.ScannerException\"",
+                    "lenient": true
+                  }
+                },
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "now-15m",
+                      "lte": "now",
+                      "format": "strict_date_optional_time"
+                    }
+                  }
+                }
+              ],
+              "should": [],
+              "must_not": []
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition": {
+    "compare": {
+      "ctx.payload.hits.total": {
+        "gte": 1
+      }
+    }
+  },
+  "actions": {
+    "ust-email-connector": {
+      "email": {
+        "profile": "standard",
+        "to": [
+          "DG-AH-Global-UPointSystemTeam@alight.com"
+        ],
+        "subject": "Invalid Microservice YML Configuration",
+        "body": {
+          "text": "See Dashboard: https://kb.tst.alight.com:5601/goto/504a600e9256129b28373475f7d8cc05"
+        }
+      }
+    }
+  }
+}
