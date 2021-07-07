@@ -1,0 +1,377 @@
+	Foundational Technology Services
+Automation and Tools	Proprietary and Confidential
+
+
+
+
+
+      		Operations Runbook
+
+
+
+
+Jenkins Runbook
+ 
+
+Document Owner:  Jyotsna Saroha
+Document Version:  1.2
+Revision Date:9/5/2017
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+	 
+
+Document Control
+
+Document Owner: Jyotsna Saroha
+Summary of Changes
+Revision Number	Revision Date	Author/Reviser – 
+Nature of Change	Changes
+1.0	29/12/2016	Jyotsna Saroha	First draft
+1.1	09/01/2016	Jyotsna Saroha	Included  review comment.
+1.2	9/05/2017	Austin Smith	Added test servers, created new section for proxy configuration; updated authentication section
+			
+			
+
+  Account and Project Leadership, Stakeholders
+Role	Name	Email
+		
+		
+		
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Contents
+
+DOCUMENT CONTROL	1
+CONTENTS	2
+1	OVERVIEW	3
+1.1.	INTRODUCTION	3
+1.2.	PURPOSE	3
+1.3.	SCOPE	3
+1.4.	KEY CONTACTS	3
+1.5.	APPLICATION DESCRIPTION	3
+1.5.1.	BUSINESS OVERVIEW	3
+1.5.2.	TECHNICAL OVERVIEW	3
+1.6.	COMPATIBILITY MATRIX	3
+1.7.	CHANGE MANAGEMENT	3
+1.8.	PROBLEM MANAGEMENT	3
+1.9.	SECURITY	3
+1.10.	DISASTER RECOVERY	3
+1.11.	SERVICE LEVEL AGREEMENTS	3
+1.12.	RACI MATRIX	3
+2	OPERATIONS	4
+2.1.	INSTALLATION PROCESS	4
+2.1.1.	PREREQUISITES AND INITIAL CONFIGURATION	4
+2.1.2.	INSTALLATION STEPS	4
+2.1.3.	POST INSTALLATION	4
+2.2.	GENERAL OPERATIONS	4
+2.3.	TROUBLESHOOTING PROCEDURES	4
+2.4.	BACKUP & RESTORE	4
+2.5.	LOGGING & MONITORING	4
+2.6.	SMOKE TESTING	4
+3	APPENDIX	5
+ 
+
+1	Overview
+
+1.1.	Introduction
+With the development of new platforms, applications, and services within Aon, the deployment and release of these must be managed through a service transition to IT operations. The Automation Framework will enable effective development processes that facilitate the release of these services into a production environment, and the ongoing activities that will provide effective support and operations for live application services.
+1.2.	Purpose
+The purpose of this document is to outline the operational runbook for the Jenkins product as a part of the Automation Framework (AF) within Aon. This document will act as an outline for implementation and general operations for Jenkins within Aon.
+
+1.3.	Scope
+Jenkins helps to automate the non-human part of the whole software development process, with now common things like continuous integration, but by further empowering teams to implement the technical part of a Continuous Delivery.
+1.4.	Key Contacts
+Contact	Role	Phone Number	E-mail Address
+Peggy Sue Marlin 	Service Owner		peggy.sue.marlin@aon.com
+
+Kurt Werner	Service Architect		kurt.werner@aon.com
+
+Ajitkumar Yumnam	Technical Lead		ajitkumar.yumnam@aon.com
+
+Austin Smith	Technical Lead		austin.smith.2@aon.com
+
+
+
+1.5.	Application Description
+1.5.1.	Business Overview
+This tool will provide a solution for continuous integration, continuous delivery and continuous deployment. It will be used heavily by development teams to get their products through the lifecycles, ensuring code is building correctly, test suites are being applied and the proper approval steps are being taken. Its primary goal is to help automate the SDLC from the first dev box to the final production boxes.
+
+
+1.5.2.	Technical Overview
+Jenkins is an automation server written in Java hosted in 4OD datacenter. CJOC is an operations console for Jenkins that allows to manage the multiple Jenkins masters within an organization. The operations console is an application built on top of the Jenkins framework, so its look and feel will be familiar to anyone who is already familiar with Jenkins.
+At Aon there are 2 CJOC (Cloudbee’s Jenkins Operation center) which are load balanced in active passive mode along with a Jenkins Master at 4OD datacenter.
+
+•	CJOC 1 : http://l4dvipap4438:8888/ 
+•	CJOC 2 : http://l4dvipap4439:8888/
+•	Master :   http://l4dvipap4435:8080/ 
+•	 
+1.6.	Compatibility Matrix 
+CJOC
+
+Hardware:
+	CPU : 4
+	Storage : 500gb
+	Memory : 16 GB 
+
+Operating Systems: 
+
+	Debian
+	Red Hat Enterprise Linux
+	Ubuntu
+	CentOS
+	Fedora
+	OpenSuse
+	Windows
+
+Java: Java 7 is the minimum requirement; Java 8 is recommended.
+
+Jenkins Master 
+
+Version: Jenkins 1.609 or newer.
+
+Java: Java 7 or newer. (Oracle Java 8 recommended).
+
+Network: Client master need to be able to establish TCP/IP connections to CJOC server.
+1.7.	Change Management
+Change Management activities tied to Jenkins will fall under the standard Change Management process for the Automation and Tools group (Change_Management ).
+1.8.	Problem Management
+Problem Management activities tied to Jenkins will fall under the standard Problem Management process for the Automation and Tools group (SharePoint doc link goes here).
+1.9.	Security
+Jenkins as with all Automation Framework applications, undergoes a security assessment from the internal Aon Security Services group, and is required to pass the assessment. SSO integration is planned for future service releases.
+Authentication and authorization will be achieved using LDAP integration.
+
+1.10.	Disaster Recovery
+    N/A.
+1.11.	Service Level Agreements
+	HA RTO requirement is 8hrs.
+	HA RPO requirement is < 60 mins.
+	Disaster RTO is 24hrs.
+	System Availability 24X7
+	S RTO (solution recovery time objective) requirement is < 60 mins  
+
+1.12.	RACI Matrix
+	Service Owner	AF	DPT	EA	Solution Architect
+		      		       	    
+Installation & Deployment	C	R	I	I	     I
+Architecture	I	I	I	R	     C
+Maintenance & Support	C	R	I	I	      I
+…					
+					
+					
+					
+					
+					
+
+2	Operations
+
+2.1.	Installation Process
+
+2.1.1.	Prerequisites and Initial Configuration
+•	Java needs to be installed prior to Jenkins Enterprise installation.
+ Run following command to install Java : yum install java
+2.1.2.	Installation Steps
+       Jenkins Enterprise Installation Steps:
+
+1.	Set the proxy using below command:
+export http_proxy=http://proxycachest.hewitt.com:3228/
+export https_proxy=https://proxycachest.hewitt.com:3228/
+
+2.	Add the repository
+wget -O /etc/yum.repos.d/jenkins.repo http://downloads.cloudbees.com/cje/rolling/rpm/jenkins.repo
+
+3.	Check the added repository:
+more /etc/yum.repos.d/jenkins.repo 
+[jenkins]
+name=CloudBees Jenkins Enterprise
+baseurl=http://nectar-downloads.cloudbees.com/jenkins-enterprise/rolling/rpm
+gpgcheck=1
+
+4.	Add the key
+           rpm --import http://downloads.cloudbees.com/cje/rolling/rpm/cloudbees.com.key
+
+5.	Update the yum cache before starting the install
+                        yum update
+
+6.	Install CloudBees Jenkins Enterprise:
+      yum install jenkins
+
+Jenkins Operation Center Installation Steps:
+
+1.	Set the proxy using below command:
+export http_proxy=http://proxycachest.hewitt.com:3228/
+export https_proxy=https://proxycachest.hewitt.com:3228/
+
+2.	Add the key to your system
+rpm --import http://downloads.cloudbees.com/cjoc/rolling/rpm/cloudbees.com.key
+
+3.	Add the repository:
+wget -O /etc/yum.repos.d/jenkins-oc.repo http://downloads.cloudbees.com/cjoc/rolling/rpm/jenkins-oc.repo
+
+4.	Check the added repository :
+more /etc/yum.repos.d/jenkins-oc.repo
+[jenkins-oc]
+name=CloudBees Jenkins Operations Center
+baseurl=http://nectar-downloads.cloudbees.com/jenkins-operations-center/rolling/rpm
+gpgcheck=1
+
+5.	Install CloudBees Jenkins Operations Center:
+yum update
+yum install jenkins-oc
+
+
+2.1.3.	Post Installation
+       Jenkins Enterprise :
+	Access via browser for initial setup http://<hostname>:8080/.
+	Initial password can be fetched from following path :  /var/lib/jenkins/secrets/initialAdminPassword
+ 
+      Jenkins Operation Center:
+
+	Access via browser for initial setup http://<hostname>:8888/.
+	Initial password can be fetched from following path :  /var/lib/jenkins/secrets/initialAdminPassword
+
+
+	For HA configuration
+
+1.	change JENKINS_HOME in /etc/sysconfig/jenkins-oc to point to share file system (NAS mount)
+2.	rsync -avxHP /var/lib/jenkins-oc/ /apps/jenkins/
+3.	vi  /etc/sysconfig/jenkins-oc
+4.	and edit 
+JENKINS_HOME="/var/lib/jenkins-oc"
+to
+JENKINS_HOME="/apps/jenkins"
+
+HA Configuration Troubleshooting:
+a.	The user id for jenkins-oc user should be same on both the CJOC servers. This can be checked by running command: id –u jenkins-oc . If the user id is not same delete the user and recreated with the same user id.
+b.	For HA configuration to work properly, ensure JENKINS_HOME have correct ownership i.e jenkins-oc . If that is not the same run command: chown jenkins-oc:jenkins-oc <path to Jenkins_HOME>
+
+2.1.4 Authentication and Authorization
+
+        
+
+ 
+
+For setting up authorization go to Jenkins> Configure Global Security > Role-based matrix authorization strategy.
+Following links provide step by step details for setting up the configuration :
+
+https://go.cloudbees.com/docs/cloudbees-documentation/cje-user-guide/index.html#rbac-img-enable
+
+To avoid lock out refer :
+https://go.cloudbees.com/docs/cloudbees-documentation/cje-user-guide/index.html#rbac-sect-troubleshooting-lockout
+
+2.1.5 Proxy Configuration
+2.2.	General Operations
+Jenkins Enterprise Master 
+
+1.	Start up: 
+service jenkins start
+
+2.	Shutdown:  
+service jenkins stop
+
+3.	Setting New Users: 
+New user can be added to appropriate group in Jenkins Enterprise Master > Groups > Select the required group > Add User 
+
+
+Jenkins Operation Center
+
+1.	Start up: 
+service jenkins-oc start
+
+2.	Shutdown:  
+service jenkins-oc stop
+
+3.	Setting New Users: 
+New user can be added to appropriate group in Jenkins OC > Groups > Select the required group > Add User 
+
+2.3.	Licensing
+Without a license, Jenkins will not process any new job requests. All job runs will be rejected Jenkins Licensing works on two principles: Stand Alone Master and JOC Managed.
+
+The licenses are managed in 3 part.
+1.	The license itself. This is an encrypted key
+2.	The public certificate. This is uses to validate the key.  The 
+3.	The license manager plugin.  This plugin is what has the cert chains.  IT is also capable of dynamically pulling the licenses for Alight from the cloudbees central site, but we choose to not use this feature to eliminate a runtime internet dependency.
+1.1.1	Stand Alone Master
+Stand alone masters manage their license from the <jenkinsrootURL>/license page.  A license key and certificate should be entered.  Clicking Validate License will validate the license and show its executor count and expiration date.
+
+1.1.2	Jenkins OC Managed Licenses
+Masters attached to JOC will PULL and Lease the license.  A license file is entered in the /license page of JOC page. The license file will contain licenses for each master attached to JOX.  Then each attached master will pull the license and “lease” it.  So our JOC license may expire one year from now, but on the masters, you will generally see an expiration date just a few days in the future. This is called leasing.  It ensures that licenses are not abused.  So every 12-72 hours, the masters will renew the lease on the license. If for any reason the JOC cannot be reached, the renew will fail and we generally have 24 hours to restore the connectivity before the licenses are deemed invalid.
+2.4.	Troubleshooting Procedures
+N/A
+2.5.	Backup & Restore
+ Nightly backup for the Jenkins Production servers and the shared NAS mount has been scheduled:
+
+Production Servers: (https://jenkinsoc.aon.com)
+
+l4dvipap4435 (Client Master)
+l4dvipap4438 (CJOC – primary)
+l4dvipap4439 (CJOC - standby)
+
+Test Servers: (https://test.jenkinsoc.aon.com)
+l4dvidap4956 (Client Master)
+L4DVIDAP4954 (CJOC – primary)
+L4DVIDAP4955 (CJOC – secondary)
+
+NAS Mount:
+
+l4vntap02-300-nas:/vol/jenkinsy/data   50G  159M   50G   1% /apps/jenkins
+
+Ref : AY05019
+2.6.	Logging & Monitoring
+https://aonfoundation.atlassian.net/browse/AF-72 
+2.7.	Smoke Testing
+N/A
+
+
+
+3	Appendix
+1.	Master (Enterprise) - https://go.cloudbees.com/docs/cloudbees-documentation/cje-install-guide/chapter-introduction.html#chapter-introduction_nectar-install
+
+2.	JOC - https://go.cloudbees.com/docs/cloudbees-documentation/cjoc-user-guide/setup.html#setup_setup 
+
