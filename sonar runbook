@@ -1,0 +1,249 @@
+
+ 
+Table of Contents
+Quick Reference	4
+Document History	4
+Summary	4
+Audience	4
+Topology	5
+Reference Architecture	5
+Lifecycles	5
+PROD	5
+Software Information	6
+Software Installation	6
+Internal Distribution	6
+File System Structure	7
+Alight-Specific Software Settings	7
+Software Updates	7
+Disaster Recovery	8
+Backup/Restore	8
+Operating System Specific changes	8
+Application Configuration / Customizations	9
+Application Standards and Conventions	9
+AAA	9
+User Management	10
+Monitoring	10
+Support	10
+Vendor Support	10
+OS Log Files	10
+Ticket / incident / Request Management Process	11
+Administrative tasks required / performed	11
+Create a Project in SonarQube	12
+Create Quality Profile in SonarQube	12
+Assign Quality Profile to Project	13
+Create SonarQube Quality Gate	13
+Assign Quality Gate to existing Project	14
+Create Project specific group & assign members in SonarQube	14
+
+
+ 
+Quick Reference
+SNOW CMDB Name	Sonarqube
+SNOW Business Owner	James Phillips
+SNOW Technical Owner	Austin Smith
+SNOW Support Group	TBD
+SNOW Change Group	TBD
+Active Lifecycles	PR
+Application Access URL	https://sonarqube.alight.com 
+Escalated Permission Account	Admin
+Credential Location	KeePass
+Active Directory Service Account	Hewitt/Svc-sonarqube
+Service account credential location	KeePass
+Service Name	n/a
+DR Tier
+TBD
+SSL Renewal Date	Dec 20
+Software Renewal Date	n/a – open source community edition
+
+Document History
+Date	Revision	Name	Change Notes
+8-14-2019	1.0	Austin Smith	Document Creation
+2-03-2020	1.1	Alpesh Bhavsar	Updated Sonar Upgrade procedure, OS specific changes, Directory structure & about functional ID
+			
+
+
+Summary
+This document is to serve as the runbook for Sonarqube within Alight Solutions.  Sonarqube is the code coverage tool of choice for Alight.  
+
+Audience
+This document is of technical nature and is intended for colleagues that will administrate Sonarqube from the CLI / Operating System and Application-settings level.  All client-side software is out of scope for this document.  Fundamental knowledge required is proficiency with RHEL via SSH in bash and troubleshooting java applications.
+
+Topology
+Sonarqube has been installed on a single server within Alight.  We are running the open-source community version, Apache reverse proxies for SSL Offloading and postgreSQL as the database.  Sonarqube does not support SSL certificates by default, so the reverse proxies were introduced by Alight compliance mandate.  Sonarqube does require ElasticSearch and the instance is built-in and unable to be decoupled from the application.  
+
+Reference Architecture
+	When Sonarqube was stood up without our environment, we followed the documentation published for the open-source version.  The only component we can offload to a different server is the database.
+
+Lifecycles
+Sonarqube has 1 lifecycle: Production.  Sonarqube is currently being used by approximately 4 development teams via an IDE scanner and additional coverage scans during their gradle build process.
+
+PROD
+The production instance is accessed by using your browser – https://sonarqube.alight.com.  
+ l4dvepap7810
+Software Information
+	Sonarqube is managed on the command line via a service control wrapper script.  The script is provided in the .zip archive distributed by the vendor.  Following Alight practices, the zip file was expanded and the application lives at /apps/sonarqube.  Pursuant to the vendor documentation, we use the sonar.sh wrapper located at /apps/sonarqube/sonarqube-8.1.0.31237/bin/linux-x86-64 to control the service status.
+
+Software Installation
+	At the time of this document’s writing, Alight is running SonarQube 8.1.  Since best practices were used to install this software using the vendor-provided zip archive method, we have minor adjustments to application configuration that is standard for Alight.  For reference, you should ALWAYS follow the vendor-provided documentation, verifying all dependencies are met. 
+
+Internal Distribution
+Any software installed or distributed within our environment should follow all Alight policies.  One of these policies from a compliance standard is to make sure the software is distributed from Artifactory or Software Center.  Since Sonarqube is a 3rd party vendor-provided software and the application servers are linux-based, we have elected to use Artifactory.  The installation package should be downloaded only from Sonarqube TLD and stored within Artifactory in the following folder: https://artifactory.alight.com/artifactory/webapp/#/artifacts/browse/simple/General/alight-generic-local/sonarqube. 
+
+File System Structure
+	Sonarqube was installed using the defaults provided within the installation zip file according to Alight policy.  This puts the home directory at /apps/sonarqube/<version>.  The zip files should always be expanded under the sonarqube directory in case an upgrade fails, roll-back is swift.
+
+Alight-Specific Software Settings
+	Once Sonarqube has been successfully installed, a configuration file requires modification:
+/apps/sonarqube/sonarqube-<version>/conf/sonar.properties to add in database, LDAP, any java_opts for proxy/non-proxy and application performance, as well as the newrelic.jar in the javaagent parameter in the web service.  For the best performance, java memory settings should be adjusted according to the established New Relic APM baselines established once this service is widely adopted and begins to carry load.  This should be reassessed at every upgrade pursuant to New Relic data and tweaked accordingly.
+
+	
+
+Software Updates
+	All software updates should be performed following current Alight policy for change management.  This includes testing and validating the upgrade in the lower lifecycles before promoting to production.  Soanrqube is very diligent in maintaining their documentation.  Prior to any upgrade, check the compatibility matrix for dependencies and verify your application link version(s).  Failure to do so will break the application.  
+https://docs.sonarqube.org/latest/setup/upgrading/
+	
+	Since we have used the zip installation method, upgrades are quite simple.  In practice, only the sonar.properties settings and installed plugins need to be carried over between version upgrades.  The following steps loosely outline the process currently used to upgrade Sonarqube (primarily following Sonarqube’s documentation FIRST):
+1.	Attain the zip file from Atlassian website
+2.	Upload bin file to Artifactory
+3.	Via ssh, login and wget the file on the proper application node using sonar function ID “sonarqube”
+4.	Unzip the file to /apps/sonarqube
+5.	Go to /apps/sonarqube/sonar-{new version}/bin/linux-x86-64 folder and start sonar using “./sonar.sh start” command.
+6.	Once Sonar is started, browse Sonar using browser and login using as username admin and password as admin. Go to Administration and install all the required plugins. You can upgrade plugins if updates are available.
+7.	Once plugins are installed, copy over LDAP, Proxy other custom configuration from /apps/sonarqube/sonar-{current-version}/conf/sonar.properties to /apps/sonarqube/sonar-{new-version}/conf/sonar.properties.
+8.	Start the sonar service using wrapper script using ./sonar start command and check logs from to /apps/sonarqube/sonar-{new-version}/logs folder. If you encounter any issue, Sonar process will exit and it will show error message in logs.
+
+Disaster Recovery
+	In the event of a disaster, Sonarqube is recovered in Tier X due to having no dependencies.  Since Alight has switched over to using VMWare SRM to survive a disaster, intervention will only be needed if the active directory server currently configured does not come up in the DR bubble, or the database server changes names.  
+
+Backup/Restore
+	In the event Sonarqube suffers from data corruption, restore from backup is necessary.  As of this document’s authoring, we backup the NAS, home and application directories and maintain availability for 28 days.  If restore is required, open the request through the global service desk and SMT will contact you, following the proper procedures.
+
+Operating System Specific changes
+
+The sonar is running as “sonarqube” function ID. So the sonar process should be run/owned by “sonarqube” user only. To run sonarqube-7.9.x version and onwards, we need below mentioned OS level changes.
+1.	Set Max Open file descriptor for “sonarqube” user. Open /etc/security/limits.conf file and add below mentioned configuration for “sonarqube” user.
+
+sonarqube - nofile 65536
+sonarqube - nproc 4096
+
+2.	Change max_map_count settings at kernel level. For that add below mentioned line in /etc/sysctl.conf file and run “sysctl -p” command.
+
+vm.max_map_count = 262144
+
+
+Application Configuration / Customizations
+Application configuration can be classified using two criteria:
+1.	CLI / Config Files
+a.	Sonar.properties
+i.	Basic application configuration information (such as DB, LDAP, Java_ops
+2.	Application UI Settings
+a.	These settings will persist across updates
+i.	Global Permissions
+ii.	SMTP Settings
+
+As mentioned in the installation and upgrade sections, we have a file that is most important in the operating system.  /apps/sonarqube/sonarqube-<version>/conf/sonar.properties, which houses the DB, LDAP, java and proxy configuration.  As long as this file is set properly, the application should fully function upon service start.
+
+The web does not contain many settings we use at this time. However, any adjustment to any settings in the administrator panel should be taken with great care.  The most important setting areas are as follows:
+
+Application Standards and Conventions
+	No additional steps should be required to provision Sonarqube projects.  Sonar projects are named pursuant to the Bitbucket project key and repo names where <bb prj key>:<reponame> is the naming convention.  There is a powershell script scheduled nightly that creates a sonar project for any repository which exists in Bitbucket.
+
+	Anonymous scanning is enabled but no one is allowed to create new projects without administrator permissions.  This will keep the projects traceable back to a group using the naming conventions and matching that to bitbucket.	
+
+AAA
+	Sonarqube uses Alight’s Hewitt-NA directory for authentication.  The LDAP configuration has been slightly modified from recommended defaults to use the mail attribute opposed to the samaccountname.  This modification gives us the traceability between version control commits in Bitbucket to developer issues in Sonarqube.
+
+User Management
+	
+
+	
+
+	
+
+Monitoring
+Sonarqube uses the New Relic Java Agent (APM) for monitoring reporting to the Alight Dev environment due to a low number of licenses available in Alight Prod environment.  This is injected by using the -javaagent:<path>/newrelic.jar in the java_ops parameter.  If this ever needs to be adjusted, please use the proper policy and procedures.  Typically, this can be accomplished with a SNOW request in the self-service area, found by searching for ‘monitoring’.  
+
+Application performance can be checked by following normal operating procedures for APM using the application name ‘Sonarqube’ in the development environment within New Relic.  
+
+Support
+	Sonarqube support is very straight forward.  Standard java application troubleshooting should be used when diagnosing the application.  The logs are available at /apps/sonarqube/sonarqube-<version>/logs on the application server.  No vendor support is available for this product due to it being the open source version.
+
+Vendor Support
+	Sonarqube carries no vendor support from the vendor.  As this application gains wider adoption, this will be reassessed.
+
+OS Log Files
+	All log files for Sonarqube are located in the /apps/sonarqube/sonarqube-<version>/logs directory.   We do have the ability to adjust the verbosity of the logs.  Any more verbose setting should be done with great care and under the knowledge of multiple Alight colleagues.  More verbose log settings under loose management can cause the application to fail!  You do not want to run at higher verbose settings for long periods of time without keeping a close eye on the server and only under the most stringent of circumstance. 
+
+
+Ticket / incident / Request Management Process
+	Currently, we have no SNOW form for requesting support.  If someone reaches out to the global service desk, they will open a ticket according to instructions contained in our service’s knowledge base article and assign it appropriately.  If a wide spread outage is discovered, SMT will follow the provided SMT documentation per our standard operating procedures.  Any time a significant change is made to people process or system troubleshooting for authentication, the SMT documentation and knowledge base articles should be updated.  
+Administrative tasks required / performed
+	
+Summarizing the data in this document, support/operational colleagues will have the need to perform the following for Bitbucket:
+Using the powershell script to:
+1.	Provisioning Users
+2.	Provision Groups / manage members
+3.	Provision Projects
+4.	Provision Repos (in rare cases)
+5.	Provide standard java-application-related troubleshooting on the server application
+6.	Interact with Vendor Support, which may require Support Bundle generation.
+
+ 
+Create a Project in SonarQube
+The Projects in SonarQube are created automatically through bamboo job (https://bamboo1.alight.com/browse/DST-SSBR/). This job executes every 24 hrs and creates Projects in SonarQube for every new repository added in Bitbucket.
+
+For example, if we add a repository called “advocacy-channels-widget” under UPN-UI Project then the Bamboo job will create Project in SonarQube called “UPN-UI:advocacy-channels-widget”. 
+The new Project is not analyzed automatically unless, it has been configured for further analysis. 
+If the Project is not there in list then the troubleshooting starting point should be Bitbucket. At very first point we should check if project exists in Bitbucket. If it is exists then we need to check Bitbucket Repo Sync job (https://bamboo1.alight.com/browse/DST-SSBR ) to see if it is failed. You can check job console logs.
+Create Quality Profile in SonarQube
+Before you begin for Quality Profile creation, you should have details like Quality Profile name, Code Language, Parent Profile, Project Name to be assigned to and approval from respective Tech lead.
+
+Follow below mentioned steps to create SonarQube Quality profile.
+1.	Login into https://sonarqube.alight.com/ using your Alight Email ID and password.
+2.	Click on “Quality Profiles” on top menu bar.
+3.	Check if the profile is already exists or not. If not then, click on “Create” button on upper right corner.
+4.	In the New Profile window, provide Quality Profile Name which is to be created. From the Language drop down, select the language this profile will be used to scan. At last select Parent Profile which you want to take as base profile and override existing rules.
+5.	Once you fill up all the details, click on “create” button. You should see the profile created under “Quality Profiles”.
+6.	Once the profile is created, you may want to assign to Project. So go to respective project, by clicking on top bar “Projects” menu.
+7.	Search for the project, where you want to apply newly created Quality profile. Click on Project, from the Project Administration, click on “Quality Profile” option.
+ 
+Assign Quality Profile to Project
+Before you begin, you should have Quality Profile, Project Name where profile needs to apply and approval from tech lead.
+
+1.	Login into SonarQube and go to respective project, by clicking on top bar “Projects” menu.
+2.	Search for the project, where you want to apply newly created Quality profile. Click on Project, from the Project Administration, click on “Quality Profile” option.
+ 
+3.	It will show list of languages. Select newly created Quality profile for respective code language. That should set Quality Profile with Project in SonarQube.
+Create SonarQube Quality Gate
+Before you begin, you should have details like Quality Gate Name, existing Quality gate to be copied, the Project Name where new Quality Gate will be applied & the approval from tech lead. 
+1.	Login into SonarQube and click on “Quality Gates” option given on top bar. 
+2.	If you want to copy existing Quality Gate and create a new one taking base line configuration from the existing gate then go to respective Quality Gare and click on “copy” button given at top right corner 
+ 
+Or in case you want to create new SonarQube Quality Gate without copying existing Quality Gate then On the left top corner, there will be button to create a Quality Gate.
+ 
+3.	When you click on “Create” button, it will open input box for the Quality Gate Name, provide name and click on “save” button.
+4.	When the new Quality Gate is created, you can assign Projects to Quality Gate. In search bar, enter name of the project key and it should display all the projects associate with the Project key. You can select the project where you want to apply new Quality Gate.
+ 
+
+Assign Quality Gate to existing Project
+Before you begin, you should have details like Quality Gate Name, the Project Name where Quality Gate will be applied & the approval from tech lead. 
+1.	Login into SonarQube and click on “Quality Gates” option given on top bar. 
+2.	Select the Quality Gate name from the left menu.
+3.	In search bar, enter name of the project key and it should display all the projects associate with the Project key. You can select the project where you want to apply new Quality Gate.
+ 
+
+Create Project specific group & assign members in SonarQube
+Before you begin, you should have details like name of the Project and approval from tech lead.
+1.	Login into SonarQube with admin privileges. Click on “Administration” on top bar.
+2.	In this Administration, click on “Security” drop down list and click on “Groups”.
+ 
+3.	To create new Group, click on “Create Group” button. It will ask you group name. You can name group like sonar-project_key-admins. Here the Project Key should be different for each group. 
+4.	Once group is created, you can assign members to it if required. You can click on highlighted icon as shown below to add members to group. 
+ 
+5.	Once group is created, go to Projects from the top bar. Select Project where you want to assign this newly created group.
+6.	In the Project configuration window, click on “administration” drop down and click on “Permissions” to assign group to project.
+ 
+7.	In the group search bar, you can enter newly created group and select appropriate check box for the admin access.
+ 
+
+This will allow all the members of the group, admin access. They will be able to change Quality gate, Quality Profile for the project.
