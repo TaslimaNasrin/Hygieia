@@ -1,0 +1,847 @@
+
+ 
+Table of Contents
+Quick Reference	4
+Document History	4
+Summary	4
+Audience	4
+Topology	5
+Reference Architecture	5
+Lifecycles	6
+DV	6
+PROD	6
+Software Information	7
+Software Installation	7
+Internal Distribution	8
+File System Structure	8
+Alight-Specific Software Settings	8
+Software Updates	8
+Disaster Recovery	9
+Backup/Restore	9
+Application Configuration / Customizations	9
+Server Settings:	11
+Mail Settings:	12
+Application Standards and Conventions	13
+AAA	13
+User Management	13
+Monitoring	16
+Support	16
+Vendor Support	16
+OS Log Files	17
+Ticket / incident / Request Management Process	17
+Administrative tasks required / performed	17
+
+
+ 
+Quick Reference
+SNOW CMDB Name	BitBucket
+SNOW Business Owner	James Phillips
+SNOW Technical Owner	Austin Smith
+SNOW Support Group	Alight-Developer-Services-Support
+SNOW Change Group	TBD
+Active Lifecycles	DV,PR
+Application Access URL	https://bitbucket.dv.alight.com
+https://bitbucket.alight.com 
+
+Escalated Permission Account	bbadmin
+Credential Location	KeePass
+Active Directory Service Account	Hewitt/Svc-bitbucket
+Service account credential location	KeePass
+Service Name	atlbitbucket
+DR Tier
+Tier 1
+SSL Renewal Date	August 16
+Software Renewal Date	September 1
+Update Schedule	Quarterly or more frequent if critical CVE/Bug discovered
+
+Document History
+Date	Revision	Name	Change Notes
+8-14-2019	1.0	Austin Smith	Document Creation
+			
+			
+
+
+Summary
+This document is to serve as the runbook for Atlassian Bitbucket within Alight Solutions.  Atlassian Bitbucket is the version control system of choice for Alight.
+
+Audience
+This document is of technical nature and is intended for colleagues that will administrate Bitbucket from the CLI / Operating System and Application-settings level.  All client-side software is out of scope for this document.  Fundamental knowledge required is proficiency with RHEL via SSH in bash and troubleshooting java applications.
+
+Topology
+Atlassian Bitbucket has been configured according to the best practices published by Atlassian.  We are running the datacenter version, with NFS as the shared drive between the servers, F5’s for the load balancing (w/ SSL Offloading) and Oracle as the database.  Bitbucket does require ElasticSearch for search abilities within code.  At this time, ElasticSearch is installed on the 3rd application node and is the only service running on that node.
+
+Reference Architecture
+	When Bitbucket was originally stood up within Alight’s environment, we followed the published reference architecture provided by the vendor. 
+Lifecycles
+Bitbucket has 2 lifecycles: Development and Production.  All upgrades for software, plugins and any applicable dependencies should be tested in Development and validated before going thru the change process and upgrading production.
+
+DV
+The development instance is accessed by using your browser- https://bitbucket.dv.alight.com.  
+
+ 
+
+
+
+PROD
+The production instance is accessed by using your browser – https://bitbucket.alight.com. 
+
+ 
+
+
+
+Software Information
+	Atlassian Software is managed through the operating system’s service control mechanism.  Since we have our services installed on RHEL, we use the service command to control service operation.  The service name after installation is atlbitbucket.
+
+Software Installation
+	At the time of this document’s writing, Alight is running BitBucket 5.16.1.  Since best practices were used to install this software using the vendor-provided bin method, we have minor adjustments to application configuration that is standard for Alight.  For reference, you should ALWAYS follow the vendor-provided documentation, verifying all dependencies are met. https://confluence.atlassian.com/bitbucketserver0516/install-bitbucket-data-center-966062174.html 
+https://confluence.atlassian.com/bitbucketserver0516/bitbucket-data-center-requirements-966062172.html 
+Internal Distribution
+Any software installed or distributed within our environment should follow all Alight policies.  One of these policies from a compliance standard is to make sure the software is distributed from Artifactory or Software Center.  Since Bitbucket is a 3rd party vendor-provided software and the application servers are linux-based, we have elected to use Artifactory.  The installation package should be downloaded only from Atlassian TLD and stored within Artifactory in the following folder: https://artifactory.alight.com/artifactory/webapp/#/artifacts/browse/simple/General/alight-generic-local/atlassian.  
+
+File System Structure
+	Bitbucket was installed using the defaults provided within the installation bin file.  This puts the home directory at /opt/Atlassian and the application home directory at /var/Atlassian.  The NFS mount point for shared cluster data is located at /var/Atlassian/application-data/bitbucket/shared.  The NFS share is 4od_uty-appdmzvf-ext:/puppet_bitbucket/data/shared.
+
+Alight-Specific Software Settings
+	Once Bitbucket has been successfully installed, a few configuration files require modification:
+<application home>/bitbucket/bin/setenv.sh to add in any java_opts for proxy/non-proxy and application performance, as well as the newrelic.jar in the javaagent parameter.  For the best performance, java has been modified to use a heap-size of 12GB with the total memory available at 16GB per application server.  This should be reassessed at every upgrade pursuant to New Relic data and tweaked accordingly.
+
+	The database configuration file is located within the shared NFS/NAS directory pursuant to vendor documentation.  This path is /var/atlassian/application-data/bitbucket/shared and the file is named bitbucket.properties.  If the database connection ever needs to be changed, editing this file will change the backend database.  Any changes made to this file should only be performed following change procedures, as it will impact the service and require an outage of both application nodes.
+
+Software Updates
+	All software updates should be performed following current Alight policy for change management.  Since Bitbucket has a production dependency, any updates should occur during a MMW.  This includes testing and validating the upgrade in the lower lifecycles before promoting to production.  Atlassian is very diligent in maintaining their documentation.  Prior to any upgrade, check the compatibility matrix for dependencies and verify your application link version(s).  Failure to do so will break the application.  https://confluence.atlassian.com/bitbucketserver0516/bitbucket-data-center-requirements-966062172.html 
+https://confluence.atlassian.com/applinks/application-links-version-matrix-779174762.html
+	
+	Since we have used the bin installation method, upgrades are quite simple.  In practice, only the application home settings need to be carried over between version upgrades.  The following steps loosely outline the process currently used to upgrade BitBucket (primarily following Atlassian’s documentation FIRST):
+1.	Attain the bin file from Atlassian website
+2.	Upload bin file to Artifactory
+3.	Via ssh, login and wget the file on the proper application node 
+4.	Chmod +x the file
+5.	Run the bin file
+6.	Select datacenter upgrade and allow the process to finish.
+a.	Using screen is recommended during the installation process to ensure it will finish gracefully in the event your session is disconnected.
+7.	Once all nodes are upgraded, start the services
+
+Disaster Recovery
+	In the event of a disaster, Bitbucket is recovered in Tier 1 due to production Upoint Next dependency.  Since Alight has switched over to using VMWare SRM to survive a disaster, intervention will only be needed if the active directory server currently configured does not come up in the DR bubble, or the database server changes names.  Furthermore, since the Upoint dependency relies on an internal user or SSH key to pull configuration files from Bitbucket, directory integration is not fully required.  However, it is important to remember an internal account must be used for any management required within the UI if directory services are not available / fully working.
+
+Backup/Restore
+	In the event Bitbucket suffers from data corruption, restore from backup is necessary.  As of this document’s authoring, we backup the NAS, home and application directories and maintain availability for 28 days.  If restore is required, open the request through the global service desk and SMT will contact you, following the proper procedures.
+
+
+Application Configuration / Customizations
+Application configuration can be classified using two criteria:
+1.	CLI / Config Files
+a.	Bitbucket.properties
+i.	Basic application configuration information (such as DB)
+b.	Setenv.sh
+i.	Changes need to be injected after every version update
+2.	Application UI Settings
+a.	These settings will persist across updates
+i.	User Directory
+ii.	Application Links
+iii.	SMTP Settings
+
+As mentioned in the installation and upgrade sections, we have two files that are most important in the operating system.  <homedir>/bin/setenv.sh, which houses the java settings and proxy configuration; and bitbucket.properites clustered configuration file in the root of the shared directory which houses the database connection information.  As long as these two files are set properly, the application should fully function upon service start.
+
+The web UI contains the lion’s share of the application settings.  Any adjustment to these settings should be taken with great care.  The most important setting areas are as follows:
+Global Permissions:
+ 
+User Directories (Covered in AAA Section)
+Server Settings:
+ 
+ 
+Mail Settings:
+  
+
+Application Standards and Conventions
+	Classic Naming Conventions will be inherently followed by using the provisioning powershell script located in Bitbucket: https://bitbucket.alight.com/projects/STS.  It is important to use meaningful project name and description since this information is free-form entry.
+Project keys, as with all Atlassian products, must be unique.
+
+1.	The powershell provisioning script should always be used to create users, groups and projects.  This will ensure naming conventions are followed to spec.
+a.	Descriptions for the project should be meaningful and NOT contain any commas.
+b.	Each project will have at least 2 admins, which are members of the <key>-admins group.
+c.	If project access is managed at the group level (opposed to repository level), users should be a member of <key>-users and permissions granted at the project level only
+2.	Users should have their username match their alight.com email address.
+3.	Bitbucket Internal users should not be provisioned without clearance from the GLS/GSS team.
+4.	Service accounts should not be licensed within Bitbucket.  Instead, configuring the project or repository for SSH-Key access is preferred.  
+	
+
+AAA
+	Bitbucket uses Alight’s Hewitt-NA directory for authentication.  Atlassian products do not support load balanced active directory connections, so we must point to a single AD server.  
+
+User Management
+	At the time of this writing we have 1,000 user licenses for BitBucket.  The the internal licensing group, stash-users, is leveraged to grant access to BitBucket according to the ebb and flow of the company.  Once we automate group management within active directory, a directory-based license group can exist.
+
+	Because we have limited coverage for user licensing, we use the delegated LDAP authentication type user directory.  The settings for the Hewitt-NA User Directory are as follows:
+ 
+ 
+ 
+
+	None of the aforementioned settings should be changed unless we are in a Disaster Recovery scenario and the primary active directory server currently configured does not come up in the DR bubble.  These settings cannot be modified if you log in as a user which is authenticated under the directory you want to edit.
+Scripts 
+For simple management and auditing of Bitbucket a series of powershell scripts have been developed.  The source of truth for script documentation is within the readme.md in the root of the repository housing the scripts.  You can find the Bitbucket scripts at https://bitbucket.alight.com/projects/STS.  
+There is also a nightly job configured to manage Bitbucket users pursuant to the ebb and flow of the company.  This is a nightly job that runs through the licensed user group, verifies the active directory account is active and login has been made in the past 30 calendar days.  Licensed users will receive warning emails stating their account is subject to deactivation at 25 days.  At 30 days, the user is emailed letting them know their account is deactivated.  The script then removes the user account from the licensed user group, reclaiming the user’s stale license.  This script is run nightly (CST) and is contained in the DST project in Bamboo: https://bamboo1.alight.com.
+
+Monitoring
+Bitbucket uses the New Relic Java Agent (APM) for monitoring.  This is injected by using the -javaagent:<path>/newrelic.jar in the java_ops parameter.  If this ever needs to be adjusted, please use the proper policy and procedures.  Typically, this can be accomplished with a SNOW request in the self-service area, found by searching for ‘monitoring’.  
+
+Application performance can be checked by following normal operating procedures for APM using the application name ‘Bitbucket’ and ‘BitbucketES’ in the production environment within New Relic.  The development instance uses ‘Bitbucket’ for the application name.
+issues can be easily identified using standard java application troubleshooting.  
+
+Support
+	Bitbucket support is very straight forward.  Standard java application troubleshooting should be used when diagnosing the application.  In the event you are unable to pinpoint an issue by tailing the log (/var/atlassian/application-data/bitbucket/log/atlassian-bitbucket.log) on the application servers, a vendor support ticket should be opened.  If you are taking on support of the application, please verify you are able to see the SEN in the web interface: https://my.atlassian.com.  If you are unable to view the SEN, please contact a business owner in the quick reference table to be added.  If you are working with a user to troubleshoot an issue, it is always important to get the node they are connecting to by viewing the footer of their web session.  However, if they are connecting via SSH, the node indication may be incorrect as SSH GIT access is a different port and does not keep the same state within the F5.
+
+Vendor Support
+	Alight has standard support through Atlassian.  This means we have a typical 8x5 availability to their support staff.  However, this may change from year to year according to negotiations upon renewal or a change in Atlassian’s terms.  It is normal operating procedure for Atlassian Support to request a support bundle.  They will always provide instructions to generate a support bundle when they request one.  The process may change from version to version or depending on the software edition.  It is always best to check and follow vendor documentation first.  These are the two most common methods we have used in the past to generate support bundles:
+
+Create a Support ZIP
+Create a Support ZIP for Datacenter Applications
+
+Again, ALWAYS rely on vendor documentation as your source of truth!  
+
+OS Log Files
+	All log files for Bitbucket are located in the /var/atlassian/application-data/bitbucket/log directory.  This directory is above the shared drive, so you the directory is unique to each server.  In other words, looking at the logs on one server only gives you a view for anything happening on that specific server.  We do have the ability to adjust the verbosity of the logs.  Any more verbose setting should be done with great care and under the knowledge of multiple Alight colleagues.  More verbose log settings under loose management can cause the application to fail!  You do not want to run at higher verbose settings for long periods of time without keeping a close eye on the server and only under the direction of Atlassian Support. 
+
+	Absent SSH access to the server, access to log files can be gained by going the support bundle route in the Web UI.  While this will not provide real time troubleshooting abilities, it can assist in troubleshooting historic issues.
+
+
+Ticket / incident / Request Management Process
+	Currently, we have no SNOW form for requesting support.  If someone reaches out to the global service desk, they will open a ticket according to instructions contained in our service’s knowledge base article and assign it appropriately.  If a wide spread outage is discovered, SMT will follow the provided SMT documentation per our standard operating procedures.  Any time a significant change is made to people process or system troubleshooting for authentication, the SMT documentation and knowledge base articles should be updated.  
+
+Administrative tasks required / performed
+	
+Summarizing the data in this document, support/operational colleagues will have the need to perform the following for Bitbucket:
+Using the powershell script to:
+1.	Provisioning Users
+2.	Provision Groups / manage members
+3.	Provision Projects
+4.	Provision Repos (in rare cases)
+5.	Provide standard java-application-related troubleshooting on the server application
+6.	Interact with Vendor Support, which may require Support Bundle generation.
+
+Bit-Bucket request Intake Parameters
+Bit-Bucket admin request includes:
+1.	Project Creation
+2.	Repo Creation
+3.	User Creation/Access
+4.	Adding Project to CXCD Pipeline
+
+PROJECT Creation Request: <Yes/No>
+Project Full Name: <For exp: UPoint Next>
+Project Key: <For exp: UPN (Abbreviation of full name)>
+Project Description: <Brief description of project, one liner>
+Need to be added to CXCD pipeline:  <Yes/No>
+Owner: <Provide the owner name of the Project>
+Admin: <Provide the Admin name of the Project, for CXCD projects admins are system team>
+<Document responsibility of owner(admin)>
+
+REPO Creation Request: <Yes/No>
+Repo Name: <Should be in all lower case, can be separated by "-">
+Project Key: <Under which Repo needs to be created>
+If it’s a micro-service/app/widget/util/wc(web-component) : Follow this link for approval process.
+https://alightsolutionsllc.sharepoint.com/Sites/ust/next_gen_support/SitePages/Project,%20Account%20and%20Repo%20Management.aspx
+
+USER Creation or Access Request: <Yes/No>
+Email Id: <Email id of the person who needs access>
+Project Key: <Project Key name on which access is needed, Or Repo name/url>
+Access Level: <Read/Write/Admin>
+Manager's Approval: <Have a comment from your manager for this access>
+<Project owner approval>
+
+Step to perform all these tasks are in https://alightsolutionsllc.sharepoint.com/Sites/ust/next_gen_support/SitePages/Project,%20Account%20and%20Repo%20Management.aspx
+
+
+
+
+_______________________________________
+upgrade:
+GIT, BITBUCKET and ELASTICSEARCH UPGRADE
+
+Contents
+Bitbucket Upgrade Requirements and Information	2-3
+Sections of Upgrade	4
+High level steps for Local Git upgrade	5
+High level steps for bitbucket data center upgrade	6-7
+High level steps for ElasticSearch upgrade	8
+Low level steps for local git upgrade	9-10
+Low Level Steps for bitbucket data center version upgrade	11-13
+Low level of steps for upgrading Elasticsearch	14-19
+Issues and Resolutions	20-24
+
+
+
+
+
+
+
+
+
+Bitbucket Upgrade
+
+Current Version:
+1.	Bitbucket Data Center Version  5.16.1
+2.	Local git version on DV  2.8.0
+3.	Local git version on PROD  2.9.3
+
+Proposed Version:
+1.	Bitbucket Data Center Version 5.16.1  7.10.1 (Released On: 15 February 2021, EOL date: 02 February 2023)
+Reference - https://confluence.atlassian.com/support/atlassian-support-end-of-life-policy-201851003.html
+2.	Local git version on DV  2.8.0  2.29.3
+3.	Local git version on PROD 2.9.3  2.29.3
+Database: Oralce-12C
+Bitbucket Home directory - /var/atlassian/application-data/bitbucket
+Bitbucket Application Installation Directory - /opt/atlassian/bitbucket/5.16.0
+New Bitbucket Application Installation Directory - /opt/atlassian/bitbucket/7.10.1
+NFS Mount Point - 4od_uty-appdmzvf-ext:/puppet_bitbucket/data/shared
+Method of Upgrade: Bitbucket Datacenter – BIN method Installation
+
+Pre-Checks:
+1.	Make sure you decide the bitbucket datacenter version prior before upgrade by referring the release notes on each version and go for the version which suitable for our environment and at lease go with recent version who is stable for month’s in time with reporting any issues
+Document: https://confluence.atlassian.com/bitbucketserver/bitbucket-server-release-notes-872139866.html
+
+2.	Fix the timing of taken backup – Oracle backup, System NAS backup, Bitbucket Home folder backup.
+a.	Oracle backup Automated script running on daily basis to take a backup. As per the team it took 15 min to complete back-up and they are ready to support to take backup one the timing been fixed.
+b.	System NAS backup NAS mount should be backed up before upgrading. Need to confirm the time taken to complete the backup from backup team
+c.	Application home directory Command <tar cvzf /opt/atlassian/bitbucket-backup_02212021.tar.gz /var/atlassian/application-data/bitbucket>
+d.	Bitbucket System Backup (System Snapshot)
+e.	Bitbucket Plugins configuration backups.
+
+3.	System Requirements – Check the following items before going into upgrade
+Reference Document - https://confluence.atlassian.com/bitbucketserver079/bitbucket-data-center-requirements-1043905560.html
+
+a.	Make your you have enough space on bitbucket home space on /var filesystem to complete the upgrade
+b.	Make sure you have triple the memory compare with data size in bitbucket NAS storage.
+c.	Make sure we have a proper system core, memory, RAM capacity to go for the upgrade.
+
+4.	Application, Apache server’s status < service atlbitbucket status>
+
+5.	Check the compatibility of Dependencies  Pls make sure to get the latest version of GIT and Elasticsearch with the latest version and should be compatible with bitbucket data center version:
+Reference: https://confluence.atlassian.com/bitbucketserver0710/supported-platforms-1044105875.html
+
+6.	Get the all support teams contacts in-line.
+ORACLE BACK UP - DG-Alight-Global-Mphasis-Oracle DG-Alight-Global-Mphasis-Oracle@alight.com
+NAS BACK UP - DG-Alight-Global-Mphasis-BUR DG-Alight-Global-Mphasis-BUR@alight.com
+VM SNAPSHOT BACK UP - DG-Alight-Global-Mphasis-VMCloudHardware DG-Alight-Global-Mphasis-VMCloudHardware@alight.com
+UNIXTECH - DG-Alight-India-Mphasis-Unix DG-Alight-India-Mphasis-Unix@alight.com
+Bitbucket VENDOR Support – Atlassian Support <priority-support-server@am.atlassian.com>  There is no direct contact support as of now, We need to open a atlassian Support ticket with based on priority, they can reply back with the ticket for resolution or they setup a meeting to work in real time screen share sessions. (Atlassian support account should be mandatory to create the ticket, currently only few members having account Tim, Rich etc.…)
+Note: You need ask SMT team to create the separate and dedicated bridge to talk with vendor in real time, suppose if you’re working from INDIA and from the VDI as you don’t have any option to join the audio communication.
+
+
+
+Sections of Upgrade:
+
+1. Upgrade the local git into latest and compatible version for bitbucket data center version
+
+2. Upgrade the bitbucket data center version into the recent and stable version.
+
+3. Upgrade the Elasticsearch into the latest and compatible version for bitbucket data center version.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+High level steps for Local Git upgrade:
+
+1. Decide the version for local git which is compatible for bitbucket data center version.
+
+2. Enable the proxy for making the connection from the local server to Internet.
+
+3. Select the download location and download the tar ball from the official website.
+https://mirrors.edge.kernel.org/pub/software/scm/git/
+
+4. Extract the tar file
+
+5. Select the Install location and installed the git application
+
+6. Create the softlink/symlink to use the latest version of git.
+
+
+
+
+
+
+
+
+
+
+
+
+High level steps for bitbucket data center upgrade:
+
+1. Attain the bin file from Atlassian website 
+
+2. Upload bin file to Artifactory for storing the file for future reference.
+
+3. Via ssh, login and wget the file on the proper application node
+
+4. Create the new bitbucket installation home directory and move the executable file.
+
+5. chmod +x the file 
+
+6. Run the bin file
+
+7. Select datacenter upgrade and allow the process to finish. 
+
+8. Using screen is recommended during the installation process to ensure it will finish gracefully in the event your session is disconnected. 
+
+9. Once installation completed. Need to mention the new installation path directory info into <Installation-directory>/bin/set-bitbucket-home.sh
+
+10. Copy any other immediately required customizations from the old version to the new one (for example if you are not running Bitbucket on the default ports or if you manage users externally, you'll need to update / copy the relevant files)
+
+11. Start Bitbucket on the node.
+
+12. Copy Bitbucket to remaining nodes
+       The next step is to replicate the upgraded Bitbucket directories to other nodes in the cluster.  
+a.	Stop Bitbucket on the first node.
+b.	Copy the installation directory and local home directory from the first node to the next node. 
+c.	If the path to the local home directory is different on this node, edit the /bin/set-bitbucket-home.sh (or set-bitbucket-home.bat on Windows) to point to the correct location. 
+d.	Start Bitbucket and confirm that everything works as expected.
+e.	Stop Bitbucket on this node before continuing with the next node. 
+f.	Repeat this process for each remaining node.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+High level steps for Elasticsearch upgrade:
+
+1. If we can’t upgrade to the latest version from the current version. Pls delete the current version of RPM package and its associated elasticsearch folders.
+
+2. Choose the latest and compatible version of Elasticsearch for bitbucket upgrade
+     Reference: https://confluence.atlassian.com/support/atlassian-support-end-of-life-policy-201851003.html
+
+3. Choose the Open source RPM file with the decided version and download into local.
+
+4. Install the RPM package
+
+5. Download and Install the plugin to secure the elasticsearch application
+
+6. Make sure to update the config information on following yml files with necessary information.
+       a. elasticsearch.yml
+       b. buckler.yml
+       c. bitbucket-properties.yml
+
+7. Start the Elasticsearch service by using service command.
+
+8. Tail the elasticsearch.log file to make sure no errors reporting while starting the service. If service failed to start service, then look out the logs and fix the issue before starting the service again.
+
+9. Test the functionalities of search option in bitbucket UI as part of testing.
+
+10. Test all the scenarios before closing the activity.
+
+
+Low level steps for local git upgrade:
+
+1.  Decide the compatible and latest version of git. Git-2.29.3
+            https://mirrors.edge.kernel.org/pub/software/scm/git/
+
+2. Enable the Proxy to get the connection on internet from the local server
+export http_proxy=http://proxycachest.hewitt.com:3228 
+export https_proxy=http://proxycachest.hewitt.com:3228
+
+3. Select the extract folder and download the tar file.
+
+4. Download the tar ball from the official source git scm website
+        wget https://mirrors.edge.kernel.org/pub/software/scm/git/git-2.29.3.tar.gz
+
+5. Extract the folder
+         tar -xvzf git-2.29.3.tar.gz
+
+6. Create the installation directory and change the folder permission
+         For Ex: go to  mkdir opt/git_installed/git-2.29.3 
+                                      chmod 775 opt/git_installed/git-2.29.3
+
+7. Go to the extract directory and configure the installation path before install
+     ./configure - -prefix=/opt/git_installed/git-2.29.3
+
+8. Next step to make the directory to install. So pls type the command ”make” and press “Enter”
+            make
+
+9. Install the application
+            make install
+10. Need to create the soft link b/w your installation directory with bin env directory. Before creating the link, we need to move the existing soft link which pointing out old version of git.
+            mv /usr/bin/git /usr/bin/git-bak
+            ln -s /opt/git_installed/git-2.29.3/bin/git /usr/bin/git
+
+11. Check the version to make sure whether the new version of git have been set successfully or not.
+            Command: git - -version   Output: git version 2.29.3
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Low Level Steps for bitbucket data center version upgrade:
+
+1. Download the BIN file from the Atlassian site.
+https://www.atlassian.com/software/bitbucket/download-archives
+
+2. Select 7.10.1 version BIN file to download
+
+3. Upload the file into artifactory location using CURL method.
+                Ex: curl -s --head -u a1026192:lanpassword -X PUT                                                                      "https://artifactory.alight.com/artifactory/cloudbees-jenkins-backups/joc-backup/backup-JOC-Backup-Job-5.tar.gz" --upload-file /tmp/jenkins-joc-backup/backup-JOC-Backup-Job-5.tar.gz
+4. Create the new installation directory – mkdir /opt/atlassian/bitbucket/7.10.1
+
+5. Set the permission <chmod 755 /opt/atlassian/bitbucket/7.10.1>
+
+6. Change the ownership <chown atlbitbucket:atlbitbucket /opt/atlassian/bitbucket/7.10.1>
+
+7. Login the bitbucket node one by one through ssh and wget the file from the artifactory to server installation directory.
+               wget <URL of Artifactory Location>
+
+8. Change the file into executable mode
+               chmod +x <bin file>
+
+9. Run the Bin file
+               sudo ./atlassian-bitbucket-x.x.x-x64.bin
+
+10. Follow the prompts to install Bitbucket. You'll be asked for the following info:
+              Type of Bitbucket instance - the type of installation, 3 options will show, for under these instructions select Data Center (Option 2, it may be varied in future release, pls make sure and select the number)
+              Installation directory - where Bitbucket will be installed – It will show the directory, just we need to make sure and type the installation directory again, then press enter.
+                       /opt/atlassian/bitbucket/7.10.1
+              Home directory - where Bitbucket application data will be stored – It will show the directory, just we need to make sure that the given directory is right or not, then press enter.
+                       /var/atlassian/application-data/bitbucket
+              TCP ports - the HTTP connector port and control port Bitbucket will run on. – No input and just press enter.
+
+11. Update the value of BITBUCKET_HOME in the <Installation-directory>/bin/set-bitbucket-home.sh file so the new Bitbucket installation points to your existing Bitbucket home directory.
+       vi /opt/atlassian/bitbucket/7.10.0/bin/set-bitbucket-home.sh
+                 Update BITBUCKET_HOME= "/var/atlassian/application-data/bitbucket"
+
+12. Copy any other immediately required customizations from the old version to the new one (for example if you are not running Bitbucket on the default ports or if you manage users externally, you'll need to update / copy the relevant files)
+
+13. Start Bitbucket on the node and check the status.
+           <service atlbitbucket start> & <service atlbitbucket status>
+
+14. Do the upgrade for remaining nodes
+       The next step is to replicate the upgraded Bitbucket directories to other nodes in the cluster.  
+a.	Stop Bitbucket on the first node.
+b.	Do the same steps to upgrade the other node. 
+c.	If the path to the local home directory is different on this node, edit the /bin/set-bitbucket-home.sh (or set-bitbucket-home.bat on Windows) to point to the correct location.
+d.	Start Bitbucket and confirm that everything works as expected.
+e.	Stop Bitbucket on this node before continuing with the next node. 
+f.	Repeat this process for each remaining node.
+
+15. Start Bitbucket and check cluster connectivity.
+Once all nodes have been upgraded you can start Bitbucket Data Center on each node, one at a time (starting up multiple nodes simultaneously can lead to serious failures).
+The Cluster monitoring console (Administration > Settings > Clustering) includes information about the active cluster nodes. When the cluster is running properly, you should be able to see the details of each node.
+
+16. Sanity Checks:
+      Complete the sanity checks after the upgrades are completed.
+Start the bitbucket service on one node and access the UI URL https://bitbucket.dv.alight.com/dashboard
+Stop the bitbucket service on 1st node and start the service on 2nd node and check the UI URL again.
+Do the above steps for all the nodes which participated in upgrades.
+Go to UI URL https://bitbucket.dv.alight.com/admin/clustering
+Check the number of nodes available in the cluster (Make sure all the bitbucket dv nodes participated in cluster or not). In DV the count should be 2 (include elasticsearch) and for PROD, the count should be 3 (include elasticsearch)
+Finally check all the user plugins status under https://bitbucket.dv.alight.com/plugins/servlet/upm?source=side_nav_manage_addons
+
+User App Plugins Status:
+
+Currently there are 4 third party plugins which is using by the users. Out of 4, 2 of them is not supported by Atlassian data Center and remaining two is ok to proceed.
+As we discussed in the last time, we can disable those 2 not supported plugins and proceed with the upgrade
+
+Bitbucket Webhooks bitbucket-webhooks (enabled)  -  Disabled
+Bitbucket Web Post Hooks Plugin (enabled)                 -  Disabled
+Adaptavist ScriptRunner for Bitbucket Server (enabled) - Upgraded to 6.21.0 from 6.5.2
+Post-Receive Jenkins Webhook Plugin (Disabled) - This plugin was owned by Aon Hewitt. Hence this is not required for now. Uninstalled.
+Backup the folders:
+1.	Take a backup of 3 config files before upgrade starts.
+bitbucket.properties
+Location: /var/atlassian/application-data/bitbucket/shared/bitbucket.properties
+
+elasticsearch.yml
+Location: /etc/elasticsearch/elasticsearch.yml
+
+buckler.yml
+Location: /etc/elasticsearch/buckler/buckler.yml
+
+2.	Back up the logs and data files from the older version elasticsearch & delete the folders.
+                     Tar -czvf /opt/atlassian/elasticsearch_log_backup03312021.tar.gz /var/log/elasticsearch
+                     Tar -czvf /opt/atlassian/elasticsearch_data_backup03312021.tar.gz /var/lib/elasticsearch
+
+Important Elasticsearch Directories:
+Reference: https://www.elastic.co/guide/en/elasticsearch/reference/7.5/rpm.html#rpm-repo
+
+Home directory - /usr/share/elasticsearch
+Bin directory - /usr/share/elasticsearch/bin
+Application config directory - /etc/elasticsearch
+System config directory - /etc/sysconfig/elasticsearch
+Data directory - /var/lib/elasticsearch
+Jdk directory - /usr/share/elasticsearch/jdk
+Logs location - /var/log/elasticsearch
+Plugins location - /usr/share/elasticsearch/plugins
+
+Steps:
+1.	Uninstall the old version:
+                          rpm -qa | grep elasticsearch
+                          rpm -e elasticsearch-2.3.4-1.noarch
+
+2.	Remove the unwanted folders of old elasticsearch version
+            cd /usr/share/
+                           rm -rf elasticsearch
+                           cd /etc
+                            rm -rf elasticsearch
+
+3.	Go to the official elastic website and download the RPM installer file into the server local path.
+                    https://www.elastic.co/guide/en/elasticsearch/reference/7.5/rpm.html#rpm-repo
+                    wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-7.5.2-x86_64.rpm
+
+4.	Decide the data and log directory. By default, elastic will choose the default directory to store the data and log. If we want to change the directory, then pls create the directory and update the new path in elasticsearch.yml
+                         Default Directory:
+                                    For data - /var/lib/elasticsearch
+                                    For log - /var/log/elasticsearch
+
+5.	Create the new directory for storing logs and data under /opt/atlassian/
+                          cd /opt/atlassian
+                          mkdir elasticsearch
+                          chmod 755 elasticsearch
+
+6.	Create sub directories for storing data and log location under /opt/atlassian/elasticsearch
+                          cd /opt/atlassian/elasticsearch
+                          mkdir data
+                          mkdir log
+                          chmod 755 data
+                          chmod 755 log
+
+7.	Install the RPM file to install the newer version
+                          sudo rpm --install elasticsearch-oss-7.5.2-x86_64.rpm
+
+8.	Change the ownership of /opt/atlassian/elasticsearch directory from root to elasticsearch
+
+     chown -R elasticsearch:elasticsearch elasticsearch
+
+(Note: This command will work only after installing the newer version. So, you can’t run the command while creating the directories)
+
+
+9.	Configure Elasticsearch with new log and data directory location
+                    vi /etc/elasticsearch/elasticsearch.yml
+                   update the below properties in yml file
+                   # ----------------------------------- Paths ------------------------------------
+                   #
+                   # Path to directory where to store the data (separate multiple locations by comma):
+                   #
+                   path.data: /opt/atlassian/elasticsearch/data
+                   #
+                   # Path to log files:
+                   #
+                   path.logs: /opt/atlassian/elasticsearch/log
+
+                   #------------------ Enable automatic creation of system indices ----------------
+                   #
+                   action.auto_create_index: ".watches,.triggered_watches,.watcher-history-*"
+                   network.host: 0.0.0.0
+                   #
+                   #----------------------------------- Enable TLS --------------------------------
+                   #
+                   http.type: buckler
+                   transport.type: buckler
+                   #
+                   #--------------------------------Disable Secomm security feature ---------------
+                   #
+                   bootstrap.system_call_filter: false
+
+10.	Secure Elasticsearch by stalling bucker plugin
+                       Run the below command:
+ES_JAVA_OPTS="-Dhttp.proxyHost=proxycachest.hewitt.com -Dhttp.proxyPort=3228 -        Dhttps.proxyHost=proxycachest.hewitt.com -Dhttps.proxyPort=3228" ./elasticsearch-plugin install -b https://packages.atlassian.com/maven-internal/com/atlassian/elasticsearch/buckler-plugin/2.1.3/buckler-plugin-2.1.3-7.5.2.zip
+
+11.	Create the buckler folder as below.
+                       Create a directory called “buckler” within the /etc/elasticsearch directory. 
+                       Within the /etc/elasticsearch/buckler directory, create a file named buckler.yml
+                           cd /etc/elasticsearch/
+                           mkdir buckler
+                           chmod 755 config
+                           cd buckler
+                           touch buckler.yml
+                            vi buckler.yml
+                            auth.basic.http.enabled: true
+                            auth.basic.username: <username>
+                            auth.basic.password: <password>
+
+12.	Update the limits of elasticsearch under the below file.
+            
+            vi /etc/security/limits.conf
+            
+            update the below lines
+                          elasticsearch - nofile 65535
+                       elasticsearch - nproc 409
+
+13.	Connect Elasticsearch to Bitbucket
+                            Update the elasticsearch config in bitbucket.properties file
+                            vi /var/atlassian/application-data/bitbucket/shared/bitbucket.properties
+                             <BITBUCKET HOME DIRECTORY>/SHARED/BITBUCKET.PROPERTIES
+                               plugin.search.elasticsearch.baseurl=http://localhost:9200/
+                               plugin.search.elasticsearch.username=<username>
+                               plugin.search.elasticsearch.password=<password>
+                  (Note: username and password should be same as buckler.yml username and password)
+           
+          15. Start the elasticsearch service
+                            service elasticsearch status
+                            service atlbitbucket start
+(Note: As per the new version, the Elasticsearch service won’t come up automatically when bitbucket service started. Need to manually start the Elasticsearch service.
+                  Reference: https://confluence.atlassian.com/bitbucketserver/start-and-stop-bitbucket-776640144.html)
+
+           16. Tail the logs and make sure all looks good
+                            tail -f /var/log/elasticsearch/elasticsearch.log
+                      
+           17. Sanity Checks:
+                      Start Elasticsearch service and then try to check each server by starting the bitbucket service individually and check the search option is working or not. This should make sure all the individual nodes are working properly regarding search option with the elasticsearch.
+                   Condition 1: Elasticsearch service started and bitbucket service started on the same node
+a.	Login the UI https://bitbucket.dv.alight.com/
+b.	Try to search in search bar for some existing project or file name
+c.	you should get an output with the searching results.
+                   Condition 2: Elasticsearch service started and bitbucket service started on the second node
+a.	Stop the bitbucket service on first node and start bitbucket service on 2nd node.
+b.	Login the UI https://bitbucket.dv.alight.com/
+c.	Try to search in search bar for some existing project or file name
+d.	you should get an output with the searching results.
+                   Condition 3: Elasticsearch service started and bitbucket service started on the 3rd node
+a.	Stop the bitbucket service on first and second node and start bitbucket service on 3rd node
+b.	Login the UI https://bitbucket.dv.alight.com/
+c.	Try to search in search bar for some existing project or file name
+d.	you should get an output with the searching results.
+
+
+
+
+
+
+
+
+Issues and Resolution:
+    This is a section which is having details of issues that we faced during the upgrade and its solution to fix the issues.
+1.  Issues: gcc compiler error when try to install the local git in one of the bitbucket prod server
+                   L4DVEPAP4461
+     Root Cause: This server was missed some gcc dependency packages when compare to other two 
+                            existing servers
+      Solution: Reached out to Unix Tech team and they have installed the required gcc packages and issue 
+                       was resolved once after the packages was installed successfully.
+
+2.  Issues: Application Home directory corrupted during the upgrade.
+      Root Cause: While copying the home and application directory from the first node to second node
+                             for replicating the changes of the new upgrade version, it got messed up and corrupted
+                             the shared folder which is having the application data and its configuration.
+       Solution: We followed the suggested steps by the vendor to copy the folders from the successful
+                        First node completion folder to 2nd  node which is causing this corruption. So, we followed
+                        Our own method to do the normal upgrade steps on all 3 nodes separately one by one
+                        After successful completion on current node.
+
+3. Issues: Bitbucket nodes were not able to join in the cluster.
+     Error:
+                
+    
+      Root Cause: All 3 nodes are not able to join with each other in the cluster for higher availability
+                             Load balancing concept. This is due to nodes were working on different time zone.
+                             So, the nodes were not able to sync and connect with each other
+                            (The system dates are correct on the OS, but the java process thinks the time zones are
+                             different)
+     Solution: The solution gave by vendor to override the auto time zone of Java by setting up the below
+                       Config in _start-webapp.sh file in application home directory
+                       JVM_SUPPORT_RECOMMENDED_ARGS="-Duser.timezone=\"US/Central\""
+                       File Path Location: /opt/atlassian/bitbucket/7.10.1/bin/_start-webapp.sh
+ 
+•	       You should be able to quickly validate that the argument made it in by reviewing the arguments associated with the Java process by running something like ps -aux | grep bitbucket | grep -v "elastic"
+
+4. Issues: Elastic search not working after the upgrade.
+     Atlassian Vendor Ticket: PSSRV-10145 search is not working in bitbucket
+     Error:
+      
+     Root Cause: The latest bitbucket version does not support the current elastic search version and it is
+                            Not compatible with the same and throws an error.
+     Solution: check compatible elastic search version which is supporting our current upgraded version
+                       and follow the installation procedures mentioned above to install the supported version of
+                       elastic search.
+
+5. Issues: Search option not working after the new version of elastic search installed in bitbucket server.
+     Root Cause: The reason is index corruption
+     Solution: Re-indexing the elastic search with all the data’s fixed the issues.
+      
+Error:
+       2021-04-12 13:54:20,356 ERROR [search-indexing:thread-1]  c.a.b.i.s.i.e.DefaultIndexEventWorker Indexing - Failed for repository EDV-UI/edv-base-app (id: 4589) with error: Unexpected error occurred when requesting index state document (id=4589) the HTTP Status code is: 404
+com.atlassian.bitbucket.internal.search.indexing.exceptions.IndexException: Unexpected error occurred when requesting index state document (id=4589) the HTTP Status code is: 404
+	at com.atlassian.bitbucket.internal.search.indexing.indexer.IndexStateService.lambda$null$4(IndexStateService.java:163)
+	at rx.internal.operators.OnSubscribeMap$MapSubscriber.onNext(OnSubscribeMap.java:69)
+	at rx.internal.operators.OperatorMerge$MergeSubscriber.emitScalar(OperatorMerge.java:511)
+	at rx.internal.operators.OperatorMerge$MergeSubscriber.tryEmit(OperatorMerge.java:466)
+	at rx.internal.operators.OperatorMerge$MergeSubscriber.onNext(OperatorMerge.java:244)
+	at rx.internal.operators.OperatorMerge$MergeSubscriber.onNext(OperatorMerge.java:148)
+	at rx.internal.operators.OnSubscribeMap$MapSubscriber.onNext(OnSubscribeMap.java:77)
+	at rx.internal.producers.SingleProducer.request(SingleProducer.java:65)
+	at rx.Subscriber.setProducer(Subscriber.java:211)
+	at rx.internal.operators.OnSubscribeMap$MapSubscriber.setProducer(OnSubscribeMap.java:102)
+	at rx.internal.operators.OnSubscribeToObservableFuture$ToObservableFuture.call(OnSubscribeToObservableFuture.java:75)
+	at rx.internal.operators.OnSubscribeToObservableFuture$ToObservableFuture.call(OnSubscribeToObservableFuture.java:43)
+	at rx.Observable.unsafeSubscribe(Observable.java:10327)
+	at rx.internal.operators.OnSubscribeMap.call(OnSubscribeMap.java:48)
+	at rx.internal.operators.OnSubscribeMap.call(OnSubscribeMap.java:33)
+	at rx.internal.operators.OnSubscribeLift.call(OnSubscribeLift.java:48)
+	at rx.internal.operators.OnSubscribeLift.call(OnSubscribeLift.java:30)
+Happening in other repositories.
+2021-04-12 13:48:20,324 ERROR [search-indexing:thread-1]  c.a.b.i.s.i.e.DefaultIndexEventWorker Indexing - Failed for repository EDV-UI/edv-base-app (id: 4589) with error: Unexpected error occurred when requesting index state document (id=4589) the HTTP Status code is: 404
+com.atlassian.bitbucket.internal.search.indexing.exceptions.IndexException: Unexpected error occurred when requesting index state document (id=4589) the HTTP Status code is: 404
+2021-04-12 13:50:20,342 ERROR [search-indexing:thread-1]  c.a.b.i.s.i.e.DefaultIndexEventWorker Indexing - Failed for repository EDV-UI/edv-base-app (id: 4589) with error: Unexpected error occurred when requesting index state document (id=4589) the HTTP Status code is: 404
+com.atlassian.bitbucket.internal.search.indexing.exceptions.IndexException: Unexpected error occurred when requesting index state document (id=4589) the HTTP Status code is: 404
+2021-04-12 13:51:06,137 ERROR [search-indexing:thread-1]  c.a.b.i.s.i.e.DefaultIndexEventWorker Indexing - Failed for repository ~RAVI.P_ALIGHT.COM/wiremock-mappings (id: 2052) with error: Unexpected error occurred when requesting index state document (id=2052) the HTTP Status code is: 404
+com.atlassian.bitbucket.internal.search.indexing.exceptions.IndexException: Unexpected error occurred when requesting index state document (id=2052) the HTTP Status code is: 404
+2021-04-12 13:52:39,323 ERROR [search-indexing:thread-1]  c.a.b.i.s.i.e.DefaultIndexEventWorker Indexing - Failed for repository AIML/nbd-clustering (id: 4706) with error: Unexpected error occurred when requesting index state document (id=4706) the HTTP Status code is: 404
+com.atlassian.bitbucket.internal.search.indexing.exceptions.IndexException: Unexpected error occurred when requesting index state document (id=4706) the HTTP Status code is: 404
+Cause & Resolution:
+The issue can be caused due to multiple reasons like corrupted indexes during the migration, The best way to fix the issue is to regenerate indexes using Rebuild the bundled Elasticsearch indexes for Bitbucket Server.
+ 
+
+ 6. Issues: elasticsearch service unable to start after upgrade
+    Root Cause: This is due to permission issue of Elasticsearch directory and buckler directory.
+    Solution: Fixing the directories permission by changing the ownership. By default, after upgrade
+                     all folders belong to ROOT ownership, we need to change it into Elasticsearch to own.
+                     Command: chown -R elasticsearch:elasticsearch <directory path>
+
+7. Issues: Bitbucket service is not coming up.
+     Error: Bitbucket is not running (pid file) exists
+     Root Cause: This is due to bitbucket not able to kill the existing process id of bitbucket service.
+     Solution: Need to kill the process id by deleting or moving the existing pid’s under the below location.
+                       /var/atlassian/application-data/bitbucket/log/bitbucket.pid
+                      rm bitbucket.pid  (or)  mv bitbucket.pid bitbucket.pid.bak
+     Solution 2: Find the bitbucket service pid and kill the same. Sometimes the bitbucket expected port is
+                           Already allocated for some other services automatically, whenever server was rebooted.
+                          Command: ps -aux | grep bitbucket
+                           kill -9 28550
+       
