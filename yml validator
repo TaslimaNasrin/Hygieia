@@ -1,0 +1,147 @@
+import com.atlassian.sal.api.component.ComponentLocator
+import com.atlassian.bitbucket.user.UserService
+import com.atlassian.bitbucket.user.ApplicationUser
+import com.atlassian.bitbucket.util.PageRequest;
+import com.atlassian.bitbucket.util.PageRequestImpl;
+import java.util.regex.Pattern;
+import org.apache.log4j.Logger
+import org.apache.log4j.Level
+import com.atlassian.sal.api.component.ComponentLocator;
+import com.atlassian.bitbucket.repository.RepositoryService;
+import com.atlassian.bitbucket.repository.Repository;
+import com.atlassian.bitbucket.repository.RefService
+import com.atlassian.bitbucket.event.pull.PullRequestMergedEvent;
+import com.atlassian.bitbucket.pull.PullRequest;
+import com.atlassian.bitbucket.repository.RepositoryCloneLinksRequest;
+import com.atlassian.sal.api.component.ComponentLocator
+import com.atlassian.bitbucket.repository.Repository
+import com.atlassian.bitbucket.repository.RepositoryService
+import com.atlassian.bitbucket.util.Page
+import com.atlassian.bitbucket.util.PageProvider
+import com.atlassian.bitbucket.util.PageRequest
+import com.atlassian.bitbucket.util.PagedIterable
+import static com.onresolve.scriptrunner.canned.bitbucket.util.BitbucketCannedScriptUtils.unlimitedPager
+import com.atlassian.bitbucket.nav.NavBuilder;
+boolean bVeto = false;
+
+log.info("Entering Yml Validator Merge Check");
+
+def projectRepoList = ["wiremock-mappings","config-postman"];
+String projectRepo = "";
+String sVetoMessage = "Cannot Merge! Source branch has Yml Validation Issues and an email alert is sent to your emailaddress with the report";
+String sDocLink = " Alternatively you can run this job to check the validation issues - http://l4dvipap4435:8080/job/ADA/job/Manual%20Builds/job/CustomYmlValidator/ ";
+
+try {
+  def repositoryService = ComponentLocator.getComponent(RepositoryService.class);
+  Repository repositor = mergeRequest.pullRequest.fromRef.repository;
+  projectRepo = repositor.name;
+
+  // Is Repo Qualified for this Yml validation merge check
+  if (projectRepoList.contains(projectRepo) == true) {
+    log.info("${projectRepo} is not a qualified Repo for Yml Validation");
+    return;
+  }
+  //End is Repo Qualified ****************************************************/
+
+  def adeptAuthUrl = "https://api.cd.alight.com/adept/auth/token"
+  PullRequest pullRequest = mergeRequest.pullRequest;
+  YmlValidatorHelper ymlValidatorHelper = new YmlValidatorHelper();
+
+  // Get Bitbucket LDAP User to get token for Yml validation
+  String token = ymlValidatorHelper.getToken();
+  def authToken = ["curl", "-sk", "-H", "Authorization: Token ${token}", "-H", "accept: application/json", "-H", "Host: api.cd.alight.com", "-k", "-X", "POST", "--url", "${adeptAuthUrl}"].execute().text
+  
+  String sSourceBranch = pullRequest.fromRef.displayId;    
+  log.info("From Branch is ${sSourceBranch}");
+
+  // String pullRequestUrl = pullRequest.
+  def link = repositoryService.getCloneLinks(new RepositoryCloneLinksRequest.Builder().repository(repositor).user(null).protocol("http").build());
+  def navBuilder = ComponentLocator.getComponent(NavBuilder);
+  def pullRequestUrl = navBuilder.repo(pullRequest.toRef.repository).pullRequest(pullRequest.id).buildAbsolute();
+  
+  // TODO To remove once deployed
+  String repoUrl = link[0]['href'].toString();
+  log.info("Repo Url is ${repoUrl}");
+  String notifyEmailAddresses = ymlValidatorHelper.getNotifyEmailAddresses(pullRequest);
+  
+  def validatorUrl = "https://api.cd.alight.com/yml-validator/validator/getYmlValidatorErrorCount"
+  def ymlValidatorData = ["curl", "-H", "Authorization: Bearer ${authToken}", "-H", "accept: application/json", "-H", "Host: api.cd.alight.com", "-k", "-X", "POST", "-d", "branch=${sSourceBranch}", "-d", "repository=${repoUrl}", "-d", "isNotificationReq=false", "-d", "notifyEmailAddresses=${notifyEmailAddresses}", "-d", "pullRequest=${pullRequestUrl}", "--url", "${validatorUrl}"].execute().text;
+  
+  if(ymlValidatorData!=null && Integer.parseInt(ymlValidatorData)>0)
+  {
+      sVetoMessage = sVetoMessage + sDocLink;        
+      mergeRequest.veto("There are validation issues for the requested branch", sVetoMessage);
+      log.error("Yml Validation Completed with validation errors "+ymlValidatorData);
+  }   
+} catch(Exception e) {
+  log.error("There was a problem invoking the yml validator : " + e);
+  mergeRequest.veto("Error Processing Request", "Error Processing Merge Workflow. Please submit a UST in Jira.");
+}
+
+/**
+* Helper class with couple of utility methods,
+* i.e extract email ids of requester and approvers and get Bitbucket LDAP token
+*/
+public class YmlValidatorHelper {
+  private Logger log = Logger.getLogger(YmlValidatorHelper.class);
+  boolean m_bUseTestBB = true; // Is this test instance
+  String m_upointCredFilePath = '/var/atlassian/application-data/bitbucket/shared/scripts/upoint/upoint_custom.properties'
+  String m_pullRequestAuthorEmail = null;
+  String m_notifyEmailList = "";
+  String m_encodedAuth = null;
+
+  /*
+   * Pulls the email address of the reviewers of the pull request (aka the person who clicked merge)  and
+   * the emailaddress of who submitted the original pull request.
+   */
+  public String getNotifyEmailAddresses(PullRequest pullRequest) {
+    try {
+      def userService = ComponentLocator.getComponent(UserService.class);
+        // Define a page request
+      def reviewers =pullRequest.reviewers*.user.emailAddress;            	
+
+      String reviewersEmailIds = reviewers.join(",")
+      m_notifyEmailList += reviewersEmailIds;
+      def m_pullRequestAuthorEmail = pullRequest.author.user.emailAddress;
+      if (m_notifyEmailList.length() > 0) {
+          m_notifyEmailList += ","
+      }
+      m_notifyEmailList += m_pullRequestAuthorEmail;
+      log.info("Printing Notifiers"+m_notifyEmailList); 
+    }
+    catch(Exception e) {
+      log.error("Unable to get Author Email or Merge Reviewers Emails", e);
+      m_pullRequestAuthorEmail = "";
+      throw e;
+    }
+    return m_notifyEmailList;
+  }
+
+  public String getToken() {
+    try {
+      File credFile = new File(m_upointCredFilePath);
+      FileInputStream fileInput = new FileInputStream(credFile);
+      Properties properties = new Properties();
+      properties.load(fileInput);
+      fileInput.close();
+
+      //Contains the encoded auth api token for upoint dev ops
+      if (m_bUseTestBB == false) {
+        m_encodedAuth = properties.devops_jenkins_api_token_prod;
+      }
+      else {
+        m_encodedAuth = properties.devops_jenkins_api_token_dev;
+      }
+    }
+    catch(FileNotFoundException efne) {
+      log.error("Error running Yml Validator, loading credential file. ", efne);
+      throw efne;
+    }
+    catch(IOException ioe) {
+      log.error("Error running Yml Validator, loading credential file. ", ioe);
+      throw ioe;
+    }
+    return m_encodedAuth;
+  } // end readCredentialFile
+
+}
